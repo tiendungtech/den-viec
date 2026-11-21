@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đèn Việc</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&display=swap" rel="stylesheet">
+<style>
+/* Layout: one narrow column — day picker, week strip, a traffic-light status card, then the task list */
+:root {
+  --bg: #F2F3EF;
+  --surface: #FFFFFF;
+  --ink: #15171B;
+  --muted: #646A71;
+  --line: #DEE1DA;
+  --accent: #2B46C9;
+  --red: #D7372A;
+  --amber: #DE9A0B;
+  --green: #1E9A56;
+  --none: #A7ACB2;
+  --housing: #1B1E22;
+  --lamp-off: #2D3137;
+  --chart-line: #2B46C9;
+  --chart-ctx: #A3A9B0;
+  --grid: #E7E9E4;
+  --font-display: "Bricolage Grotesque", "Be Vietnam Pro", system-ui, sans-serif;
+  --font-body: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1113; --surface: #171A1E; --ink: #ECEEEA; --muted: #9BA1A8; --line: #2A2F35;
+    --accent: #8EA0FF; --red: #FF6B5C; --amber: #F6BC3F; --green: #3DCB7E; --none: #5B6168;
+    --housing: #08090B; --lamp-off: #23272C;
+    --chart-line: #6F84F0; --chart-ctx: #50575F; --grid: #262A2F;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1113; --surface: #171A1E; --ink: #ECEEEA; --muted: #9BA1A8; --line: #2A2F35;
+  --accent: #8EA0FF; --red: #FF6B5C; --amber: #F6BC3F; --green: #3DCB7E; --none: #5B6168;
+  --housing: #08090B; --lamp-off: #23272C;
+  --chart-line: #6F84F0; --chart-ctx: #50575F; --grid: #262A2F;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font-family: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+.app { max-width: 680px; margin: 0 auto; padding: 20px 16px 104px; display: flex; flex-direction: column; gap: 16px; --status: var(--none); }
+.app[data-status="red"] { --status: var(--red); }
+.app[data-status="yellow"] { --status: var(--amber); }
+.app[data-status="green"] { --status: var(--green); }
+
+/* Top bar */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: -0.01em; }
+.brand-mark { display: inline-flex; gap: 3px; padding: 4px 6px; background: var(--housing); border-radius: 999px; }
+.brand-mark i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+.brand-mark i:nth-child(1) { background: var(--red); }
+.brand-mark i:nth-child(2) { background: var(--amber); }
+.brand-mark i:nth-child(3) { background: var(--green); }
+.sync { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; text-align: right; background: none; border: 0; padding: 4px 0; cursor: pointer; }
+.sync:hover { color: var(--ink); }
+.sync::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--sync-dot, var(--none)); }
+.sync[data-state="ok"] { --sync-dot: var(--green); }
+.sync[data-state="saving"], .sync[data-state="warn"] { --sync-dot: var(--amber); }
+.sync[data-state="error"] { --sync-dot: var(--red); }
+
+/* Day navigation */
+.daynav { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; }
+.icon-btn, .chip-btn {
+  height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink); cursor: pointer;
+}
+.icon-btn { width: 40px; display: grid; place-items: center; padding: 0; }
+.icon-btn svg { width: 18px; height: 18px; }
+.chip-btn { padding: 0 14px; font-weight: 500; font-size: 14px; }
+.chip-btn:disabled { opacity: .45; cursor: default; }
+.icon-btn:hover, .chip-btn:not(:disabled):hover { border-color: var(--ink); }
+.daylabel { text-align: center; min-width: 0; }
+.weekday { font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; text-wrap: balance; }
+.date { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Week strip */
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.wd {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 8px 0 10px; border-radius: 12px; border: 1px solid transparent;
+  background: transparent; color: var(--ink); cursor: pointer;
+}
+.wd:hover { background: var(--surface); }
+.wd[aria-selected="true"] { background: var(--surface); border-color: var(--ink); }
+.wd-name { font-size: 12px; color: var(--muted); font-weight: 500; }
+.wd.is-today .wd-name { color: var(--accent); font-weight: 700; }
+.wd-num { font-family: var(--font-display); font-weight: 600; font-size: 17px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.wd-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 2px; background: var(--dot); }
+.wd-dot[data-level="none"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+.wd-dot[data-level="red"] { --dot: var(--red); }
+.wd-dot[data-level="yellow"] { --dot: var(--amber); }
+.wd-dot[data-level="green"] { --dot: var(--green); }
+
+/* Status card */
+.status-card {
+  background: color-mix(in srgb, var(--status) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--status) 30%, var(--line));
+  border-radius: 20px; padding: 20px 20px 18px;
+  display: grid; grid-template-columns: auto 1fr; column-gap: 20px; row-gap: 6px; align-items: center;
+  transition: background-color .4s ease, border-color .4s ease;
+}
+.signal {
+  grid-row: 1 / span 3; align-self: center;
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 9px;
+  background: var(--housing); border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 8px 18px -8px rgba(0,0,0,.45);
+}
+.lamp { width: 26px; height: 26px; border-radius: 50%; background: var(--lamp-off); box-shadow: inset 0 2px 5px rgba(0,0,0,.55); transition: background-color .35s ease, box-shadow .35s ease; }
+.app[data-status="red"] .lamp.red { background: var(--red); box-shadow: 0 0 16px 3px color-mix(in srgb, var(--red) 65%, transparent), inset 0 -3px 6px rgba(0,0,0,.2); }
+.app[data-status="yellow"] .lamp.yellow { background: var(--amber); box-shadow: 0 0 16px 3px color-mix(in srgb, var(--amber) 65%, transparent), inset 0 -3px 6px rgba(0,0,0,.2); }
+.app[data-status="green"] .lamp.green { background: var(--green); box-shadow: 0 0 16px 3px color-mix(in srgb, var(--green) 65%, transparent), inset 0 -3px 6px rgba(0,0,0,.2); }
+
+.status-main { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.pct {
+  font-family: var(--font-display); font-weight: 800; font-size: 64px; line-height: .9;
+  letter-spacing: -0.045em; color: var(--status); font-variant-numeric: tabular-nums;
+  transition: color .4s ease; white-space: nowrap;
+}
+.pct small { font-size: .4em; font-weight: 700; letter-spacing: 0; margin-left: 2px; }
+.status-text { min-width: 0; }
+.status-label { font-family: var(--font-display); font-weight: 700; font-size: 19px; line-height: 1.2; text-wrap: balance; }
+.status-hint { font-size: 14px; color: var(--muted); margin-top: 3px; }
+
+.meter { position: relative; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 9%, transparent); margin-top: 26px; }
+.meter-fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; border-radius: inherit; background: var(--status); transition: width .45s cubic-bezier(.2,.8,.2,1), background-color .4s ease; }
+.meter-tick { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 2px dotted color-mix(in srgb, var(--amber) 85%, var(--ink)); }
+.meter-tick span { position: absolute; bottom: calc(100% + 2px); left: 0; transform: translateX(-50%); font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.status-foot { display: flex; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 6px; }
+.streak { color: var(--ink); font-weight: 600; }
+
+.status-card.celebrate { animation: pop .7s ease; }
+.status-card.celebrate .lamp.green { animation: flash 1s ease; }
+@keyframes pop { 0% { transform: scale(1); } 35% { transform: scale(1.018); } 100% { transform: scale(1); } }
+@keyframes flash { 0%, 100% { filter: none; } 30% { filter: brightness(1.6); } }
+
+/* Carry-over banner */
+.carry { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px dashed color-mix(in srgb, var(--amber) 60%, var(--line)); font-size: 14px; }
+.carry[hidden] { display: none; }
+.carry button { flex: none; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--ink); background: transparent; color: var(--ink); font-weight: 600; font-size: 13px; cursor: pointer; }
+
+/* Add form */
+.add { display: flex; gap: 8px; }
+.add input {
+  flex: 1; min-width: 0; height: 48px; padding: 0 16px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 16px;
+}
+.add input::placeholder { color: var(--muted); }
+.add input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.btn-primary { height: 48px; padding: 0 20px; border-radius: 14px; border: 0; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 15px; cursor: pointer; }
+.btn-primary:disabled, .add input:disabled { opacity: .5; cursor: default; }
+
+/* Filters + list */
+.filters { display: inline-flex; gap: 4px; padding: 4px; background: color-mix(in srgb, var(--ink) 6%, transparent); border-radius: 12px; align-self: flex-start; }
+.filters button { border: 0; background: transparent; padding: 6px 12px; border-radius: 9px; font-weight: 500; font-size: 14px; color: var(--muted); cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.filters .n { font-variant-numeric: tabular-nums; opacity: .7; margin-left: 3px; }
+
+.list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.list:empty { display: none; }
+.task { display: flex; align-items: center; gap: 12px; padding: 10px 8px 10px 14px; border-top: 1px solid var(--line); min-height: 56px; }
+.task:first-child { border-top: 0; }
+.task input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; flex: none; margin: 0;
+  width: 24px; height: 24px; border-radius: 8px; cursor: pointer;
+  border: 2px solid color-mix(in srgb, var(--ink) 30%, transparent); background: transparent;
+  display: grid; place-items: center; transition: background-color .2s ease, border-color .2s ease;
+}
+.task input[type="checkbox"]:hover { border-color: var(--green); }
+.task input[type="checkbox"]:checked { background: var(--green); border-color: var(--green); }
+.task input[type="checkbox"]:checked::after { content: ""; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg); }
+.task input[type="checkbox"]:disabled { cursor: default; opacity: .6; }
+.task-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.task.done .task-text { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.6; padding: 0 7px; border-radius: 999px; background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--ink); margin-left: 8px; white-space: nowrap; vertical-align: 1px; text-decoration: none; }
+.task-actions { display: flex; gap: 2px; opacity: .5; transition: opacity .15s ease; }
+.task:hover .task-actions, .task:focus-within .task-actions { opacity: 1; }
+@media (hover: none) { .task-actions { opacity: 1; } }
+.mini-btn { width: 36px; height: 36px; border-radius: 9px; border: 0; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0; }
+.mini-btn svg { width: 17px; height: 17px; }
+.mini-btn:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
+.mini-btn.del:hover { color: var(--red); }
+.edit-input { flex: 1; min-width: 0; font-size: 16px; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 9px; background: var(--surface); color: var(--ink); }
+.edit-input:focus { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 16px; padding: 20px 18px; }
+.empty[hidden] { display: none; }
+.empty h3 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 700; font-size: 17px; }
+.empty p { margin: 0; color: var(--muted); font-size: 14px; }
+.sugs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.sug { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 7px 12px; font-size: 14px; cursor: pointer; }
+.sug:hover { border-color: var(--ink); }
+
+/* Tools */
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 14px; color: var(--muted); padding-top: 2px; }
+.link-btn { background: none; border: 0; padding: 4px 0; color: var(--accent); font-weight: 500; font-size: 14px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.link-btn:disabled { color: var(--muted); text-decoration: none; cursor: default; opacity: .6; }
+.thresh { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.thresh select { font-weight: 500; font-size: 14px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+
+/* Toast */
+.toast {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 10;
+  display: flex; align-items: center; gap: 14px; max-width: calc(100% - 32px);
+  background: var(--ink); color: var(--bg); padding: 10px 10px 10px 16px; border-radius: 14px;
+  font-size: 14px; box-shadow: 0 12px 30px -10px rgba(0,0,0,.45);
+}
+.toast[hidden] { display: none; }
+.toast button { flex: none; background: transparent; border: 1px solid color-mix(in srgb, var(--bg) 45%, transparent); color: var(--bg); border-radius: 9px; padding: 5px 10px; font-weight: 600; font-size: 13px; cursor: pointer; }
+.toast button[hidden] { display: none; }
+
+/* History */
+.history { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; padding-top: 22px; border-top: 1px solid var(--line); }
+.hist-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
+.hist-title { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; }
+.hist-sub { margin: 2px 0 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hist-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.seg { display: inline-flex; gap: 3px; padding: 3px; background: color-mix(in srgb, var(--ink) 6%, transparent); border-radius: 11px; }
+.seg button { border: 0; background: transparent; padding: 5px 10px; border-radius: 8px; font-weight: 500; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+
+.hist-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; min-width: 0; }
+.stat-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+.stat-value { font-size: 24px; font-weight: 700; line-height: 1.25; margin-top: 2px; letter-spacing: -0.01em; }
+.stat-value small { font-size: 14px; font-weight: 600; color: var(--muted); margin-left: 2px; letter-spacing: 0; }
+.stat-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 12px 10px; }
+.chart-top { display: flex; justify-content: space-between; align-items: center; gap: 6px 12px; flex-wrap: wrap; padding: 0 4px 4px; }
+.chart-cap { font-size: 13px; font-weight: 600; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 2px; border-radius: 2px; background: var(--k); }
+.chart-wrap { position: relative; }
+#chart { display: block; width: 100%; height: auto; overflow: visible; cursor: crosshair; touch-action: pan-y; }
+#chart:focus { outline: none; }
+#chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
+#chart text { font-family: var(--font-body); }
+#chart .grid line { stroke: var(--grid); stroke-width: 1; }
+#chart .axis text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+#chart .axis text.today { fill: var(--ink); font-weight: 700; }
+#chart .l-done { fill: none; stroke: var(--chart-line); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+#chart .a-done { fill: var(--chart-line); fill-opacity: .1; stroke: none; }
+#chart .l-total { fill: none; stroke: var(--chart-ctx); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+#chart .thr { stroke: color-mix(in srgb, var(--amber) 80%, var(--ink)); stroke-width: 1; stroke-dasharray: 4 4; }
+#chart .thr-label { fill: var(--muted); font-size: 11px; font-weight: 600; }
+#chart .dot { stroke: var(--surface); stroke-width: 2; }
+#chart .dot.red { fill: var(--red); }
+#chart .dot.yellow { fill: var(--amber); }
+#chart .dot.green { fill: var(--green); }
+#chart .dot.none { fill: var(--surface); stroke: var(--chart-ctx); stroke-width: 1.5; }
+#chart .dot-ctx { fill: var(--chart-ctx); stroke: var(--surface); stroke-width: 2; }
+#chart .sel-band { fill: color-mix(in srgb, var(--ink) 5%, transparent); }
+#chart .cross { stroke: var(--muted); stroke-width: 1; }
+#chart .end-label { fill: var(--ink); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chart-tip {
+  position: absolute; top: 0; left: 0; pointer-events: none; z-index: 2; min-width: 168px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  font-size: 12px; box-shadow: 0 8px 24px -10px rgba(0,0,0,.35);
+}
+.chart-tip[hidden] { display: none; }
+.tip-date { font-weight: 600; margin-bottom: 3px; }
+.tip-row { display: flex; align-items: center; gap: 7px; line-height: 1.65; color: var(--muted); white-space: nowrap; }
+.tip-row b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.tip-key { width: 12px; height: 2px; border-radius: 2px; background: var(--k); flex: none; }
+.tip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--k); flex: none; }
+.chart-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: var(--muted); pointer-events: none; }
+.chart-empty[hidden] { display: none; }
+.chart-note { margin: 4px 4px 0; font-size: 12px; color: var(--muted); }
+
+.hist-table summary { cursor: pointer; font-size: 14px; color: var(--accent); font-weight: 500; padding: 4px 0; width: fit-content; }
+.table-wrap { overflow-x: auto; margin-top: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.hist-table table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.hist-table th, .hist-table td { padding: 8px 12px; text-align: right; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hist-table th { border-top: 0; color: var(--muted); font-weight: 600; font-size: 12px; }
+.hist-table th:first-child, .hist-table td:first-child, .hist-table th:last-child, .hist-table td:last-child { text-align: left; }
+.lv { display: inline-flex; align-items: center; gap: 6px; }
+.lv i { width: 8px; height: 8px; border-radius: 50%; background: var(--k); }
+.lv i.none { background: transparent; box-shadow: inset 0 0 0 1.5px var(--chart-ctx); }
+
+/* GitHub storage */
+.notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)); font-size: 14px; }
+.notice[hidden] { display: none; }
+.notice button { flex: none; height: 34px; padding: 0 12px; border-radius: 10px; border: 0; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 13px; cursor: pointer; }
+.gh { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding-top: 22px; border-top: 1px solid var(--line); }
+.gh[hidden] { display: none; }
+.gh-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 14px; }
+.gh-card[hidden] { display: none; }
+.gh-card p { margin: 0; }
+.gh-card code { font-size: 13px; background: color-mix(in srgb, var(--ink) 7%, transparent); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+.gh-card a { color: var(--accent); }
+.gh-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.field input { height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 16px; min-width: 0; }
+.field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.gh-err { color: var(--red); font-weight: 500; }
+.gh-err:empty { display: none; }
+.gh-note { font-size: 12px; color: var(--muted); }
+.gh-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.gh-card .btn-primary { align-self: flex-start; height: 44px; }
+.btn-secondary { height: 38px; padding: 0 14px; border-radius: 11px; border: 1px solid var(--ink); background: transparent; color: var(--ink); font-weight: 600; font-size: 14px; cursor: pointer; }
+.btn-secondary:disabled, .gh-card .btn-primary:disabled { opacity: .5; cursor: default; }
+.muted { color: var(--muted); }
+
+@media (max-width: 560px) {
+  .hist-stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 440px) {
+  .app { padding-top: 16px; gap: 14px; }
+  .pct { font-size: 52px; }
+  .status-card { column-gap: 16px; padding: 18px 16px 16px; }
+  .status-main { gap: 12px; }
+  .status-label { font-size: 17px; }
+  .lamp { width: 22px; height: 22px; }
+  .weekday { font-size: 19px; }
+  .chip-btn { padding: 0 10px; }
+  .thresh { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" id="app" data-status="none">
+  <header class="top">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Đèn Việc</span></div>
+    <button type="button" class="sync" id="sync" aria-live="polite" data-state="saving">Đang tải…</button>
+  </header>
+
+  <div class="notice" id="ghNotice" hidden>
+    <span>Việc của bạn đang chỉ nằm trên trình duyệt này và có thể mất khi đóng trang. Kết nối GitHub để lưu lâu dài.</span>
+    <button type="button" id="ghNoticeBtn">Kết nối GitHub</button>
+  </div>
+
+  <nav class="daynav" aria-label="Chọn ngày">
+    <button type="button" id="prevDay" class="icon-btn" aria-label="Ngày trước">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5"/></svg>
+    </button>
+    <div class="daylabel">
+      <div id="dayWeekday" class="weekday">Hôm nay</div>
+      <div id="dayDate" class="date"></div>
+    </div>
+    <button type="button" id="nextDay" class="icon-btn" aria-label="Ngày sau">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5"/></svg>
+    </button>
+    <button type="button" id="todayBtn" class="chip-btn">Hôm nay</button>
+  </nav>
+
+  <div class="week" id="week" role="tablist" aria-label="Các ngày trong tuần"></div>
+
+  <section class="status-card" id="statusCard" aria-labelledby="statusLabel">
+    <div class="signal" aria-hidden="true"><span class="lamp red"></span><span class="lamp yellow"></span><span class="lamp green"></span></div>
+    <div class="status-main">
+      <div class="pct"><span id="pct">0</span><small>%</small></div>
+      <div class="status-text">
+        <div id="statusLabel" class="status-label">Chưa có việc</div>
+        <div id="statusHint" class="status-hint">Đang tải dữ liệu…</div>
+      </div>
+    </div>
+    <div class="meter" id="meter" role="progressbar" aria-label="Tiến độ trong ngày" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="meter-fill" id="meterFill"></div>
+      <div class="meter-tick" id="meterTick" style="left:50%"><span id="meterTickLabel">vàng 50%</span></div>
+    </div>
+    <div class="status-foot"><span id="countText">0 việc</span><span id="streak" class="streak"></span></div>
+  </section>
+
+  <div class="carry" id="carry" hidden>
+    <span id="carryText"></span>
+    <button type="button" id="carryBtn">Mang sang hôm nay</button>
+  </div>
+
+  <form class="add" id="addForm" autocomplete="off">
+    <label for="newTask" class="sr-only">Việc cần làm mới</label>
+    <input id="newTask" name="newTask" type="text" maxlength="200" placeholder="Thêm việc cần làm…" enterkeyhint="done" disabled>
+    <button type="submit" class="btn-primary" id="addBtn" disabled>Thêm</button>
+  </form>
+
+  <div class="filters" id="filters" role="group" aria-label="Lọc việc">
+    <button type="button" id="f-all" data-filter="all" aria-pressed="true">Tất cả<span class="n"></span></button>
+    <button type="button" id="f-todo" data-filter="todo" aria-pressed="false">Chưa xong<span class="n"></span></button>
+    <button type="button" id="f-done" data-filter="done" aria-pressed="false">Đã xong<span class="n"></span></button>
+  </div>
+
+  <ul class="list" id="list" aria-label="Danh sách việc"></ul>
+  <div class="empty" id="empty"></div>
+
+  <footer class="tools">
+    <button type="button" class="link-btn" id="moveBtn">Dời việc chưa xong sang ngày mai</button>
+    <button type="button" class="link-btn" id="clearDoneBtn">Xoá việc đã xong</button>
+    <label class="thresh" for="yellowAt">Lên vàng khi xong
+      <select id="yellowAt">
+        <option value="30">30%</option>
+        <option value="50" selected>50%</option>
+        <option value="70">70%</option>
+        <option value="80">80%</option>
+      </select>
+    </label>
+  </footer>
+
+  <section class="history" id="history" aria-labelledby="histTitle">
+    <div class="hist-head">
+      <div>
+        <h2 id="histTitle" class="hist-title">Lịch sử</h2>
+        <p id="histSub" class="hist-sub"></p>
+      </div>
+      <div class="hist-controls">
+        <div class="seg" id="histRange" role="group" aria-label="Khoảng thời gian">
+          <button type="button" id="r-7" data-range="7" aria-pressed="false">7 ngày</button>
+          <button type="button" id="r-14" data-range="14" aria-pressed="true">14 ngày</button>
+          <button type="button" id="r-30" data-range="30" aria-pressed="false">30 ngày</button>
+        </div>
+        <div class="seg" id="histMetric" role="group" aria-label="Chỉ số trên biểu đồ">
+          <button type="button" id="m-count" data-metric="count" aria-pressed="true">Số việc</button>
+          <button type="button" id="m-pct" data-metric="pct" aria-pressed="false">% hoàn thành</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hist-stats" id="histStats"></div>
+
+    <div class="chart-card">
+      <div class="chart-top">
+        <span class="chart-cap" id="chartCap">Số việc mỗi ngày</span>
+        <div class="legend" id="histLegend"></div>
+      </div>
+      <div class="chart-wrap" id="chartWrap">
+        <svg id="chart" tabindex="0" role="img" aria-label="Biểu đồ lịch sử"></svg>
+        <div class="chart-tip" id="chartTip" hidden></div>
+        <div class="chart-empty" id="chartEmpty" hidden>Chưa có việc nào trong khoảng này</div>
+      </div>
+      <p class="chart-note">Chạm hoặc rê chuột để xem từng ngày. Bấm vào một ngày để mở danh sách việc của ngày đó.</p>
+    </div>
+
+    <details class="hist-table">
+      <summary>Xem dạng bảng</summary>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Ngày</th><th scope="col">Xong</th><th scope="col">Tổng</th><th scope="col">%</th><th scope="col">Đèn</th></tr></thead>
+          <tbody id="histBody"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section class="gh" id="ghPanel" aria-labelledby="ghTitle" hidden>
+    <h2 id="ghTitle" class="hist-title">Lưu trữ trên GitHub</h2>
+
+    <div class="gh-card" id="ghConnected" hidden>
+      <p>Đang lưu vào file <code>data.json</code> trong repo <b id="ghRepoName"></b>.</p>
+      <p class="muted" id="ghLast"></p>
+      <div class="gh-actions">
+        <button type="button" class="btn-secondary" id="ghSyncNow">Đồng bộ ngay</button>
+        <button type="button" class="link-btn" id="ghReenter">Đổi token</button>
+        <button type="button" class="link-btn" id="ghDisconnect">Ngắt kết nối trên máy này</button>
+      </div>
+    </div>
+
+    <form class="gh-card" id="ghForm" autocomplete="off" hidden>
+      <p>Việc của bạn sẽ được lưu vào file <code>data.json</code> trong một repo <b>Private</b> trên GitHub, nên mở trên máy nào cũng còn. Mỗi máy chỉ cần dán token một lần.</p>
+      <ol class="gh-steps">
+        <li>Tạo một repo <b>Private</b> tên <code>den-viec-data</code>, nhớ tick <b>Add a README file</b>.</li>
+        <li>Mở <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">trang tạo token của GitHub</a>. Mục <b>Repository access</b> chọn <b>Only select repositories</b> rồi chọn <code>den-viec-data</code>. Mục <b>Permissions</b>, thêm <b>Contents</b> và chọn <b>Read and write</b>. Chọn thời hạn, rồi bấm <b>Generate token</b>.</li>
+        <li>Sao chép token và dán vào ô bên dưới.</li>
+      </ol>
+      <div class="field">
+        <label for="ghRepo">Repo dữ liệu</label>
+        <input id="ghRepo" type="text" placeholder="ten-tai-khoan/den-viec-data" spellcheck="false" autocapitalize="off" autocorrect="off">
+      </div>
+      <div class="field">
+        <label for="ghToken">Token</label>
+        <input id="ghToken" type="password" placeholder="github_pat_…" spellcheck="false" autocapitalize="off" autocorrect="off">
+      </div>
+      <p class="gh-err" id="ghErr" role="alert"></p>
+      <button type="submit" class="btn-primary" id="ghConnectBtn">Kết nối</button>
+      <p class="gh-note">Token chỉ được lưu trên trình duyệt của máy này và chỉ được gửi tới GitHub.</p>
+    </form>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden>
+    <span id="toastMsg"></span>
+    <button type="button" id="toastUndo">Hoàn tác</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const LS_KEY = "denviec:v1";
+  const WD_LONG = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+  const WD_SHORT = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+  const THRESHOLDS = [30, 50, 70, 80];
+  const SUGGESTIONS = ["Học tiếng Nhật 30 phút", "Ôn bài trên lớp", "Làm bài tập về nhà", "Tập thể dục 20 phút", "Đọc sách 15 phút", "Dọn bàn học"];
+  const LABELS = {
+    none: "Chưa có việc",
+    red: "Đèn đỏ · còn nhiều việc",
+    yellow: "Đèn vàng · sắp xong",
+    green: "Đèn xanh · xong hết"
+  };
+  const ICON_EDIT = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 3.5l3 3L7 16H4v-3l9.5-9.5z"/></svg>';
+  const ICON_DEL = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15"/></svg>';
+
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    app: $("app"), sync: $("sync"),
+    prevDay: $("prevDay"), nextDay: $("nextDay"), todayBtn: $("todayBtn"),
+    dayWeekday: $("dayWeekday"), dayDate: $("dayDate"), week: $("week"),
+    statusCard: $("statusCard"), pct: $("pct"), statusLabel: $("statusLabel"), statusHint: $("statusHint"),
+    meter: $("meter"), meterFill: $("meterFill"), meterTick: $("meterTick"), meterTickLabel: $("meterTickLabel"),
+    countText: $("countText"), streak: $("streak"),
+    carry: $("carry"), carryText: $("carryText"), carryBtn: $("carryBtn"),
+    addForm: $("addForm"), newTask: $("newTask"), addBtn: $("addBtn"),
+    filters: $("filters"), list: $("list"), empty: $("empty"),
+    moveBtn: $("moveBtn"), clearDoneBtn: $("clearDoneBtn"), yellowAt: $("yellowAt"),
+    toast: $("toast"), toastMsg: $("toastMsg"), toastUndo: $("toastUndo")
+  };
+  const elH = {
+    sub: $("histSub"), range: $("histRange"), metric: $("histMetric"), stats: $("histStats"),
+    cap: $("chartCap"), legend: $("histLegend"), wrap: $("chartWrap"), svg: $("chart"),
+    tip: $("chartTip"), empty: $("chartEmpty"), body: $("histBody")
+  };
+  const elG = {
+    notice: $("ghNotice"), noticeBtn: $("ghNoticeBtn"), panel: $("ghPanel"),
+    connected: $("ghConnected"), repoName: $("ghRepoName"), last: $("ghLast"),
+    syncNow: $("ghSyncNow"), reenter: $("ghReenter"), disconnect: $("ghDisconnect"),
+    form: $("ghForm"), repo: $("ghRepo"), token: $("ghToken"), err: $("ghErr"), connectBtn: $("ghConnectBtn")
+  };
+  const LEVEL_SHORT = { none: "Không có việc", red: "Đỏ", yellow: "Vàng", green: "Xanh" };
+  const LEVEL_VAR = { red: "var(--red)", yellow: "var(--amber)", green: "var(--green)", none: "var(--chart-ctx)" };
+
+  /* ---------- Dates (local time) ---------- */
+  const pad = (n) => String(n).padStart(2, "0");
+  const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parseKey = (k) => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+  const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return keyOf(d); };
+  const todayKey = () => keyOf(new Date());
+  const isDayKey = (k) => /^\d{4}-\d{2}-\d{2}$/.test(k);
+  const fmtDate = (k) => { const d = parseKey(k); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
+  const fmtShort = (k) => { const d = parseKey(k); return `${d.getDate()}/${d.getMonth() + 1}`; };
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const shorten = (s, n = 28) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+  /* ---------- State ---------- */
+  const state = {
+    mode: "loading",          // loading | cloud | local
+    db: null, uid: null,
+    ready: false, loaded: false, stale: false, readOnly: false,
+    syncMsg: null, localOk: true,
+    days: {},                 // "YYYY-MM-DD" -> { tasks: [...] }
+    settings: { yellowAt: 50 },
+    today: todayKey(),
+    selected: todayKey(),
+    filter: "all",
+    editing: null, editDraft: "", editFocus: false,
+    lastShown: { key: null, level: null },
+    histRange: 14, histMetric: "count", hoverIdx: null, histRows: [], geom: null,
+    insideClaude: false,
+    gh: null, ghBusy: false, ghDirty: false, ghError: null, ghLastSync: null, ghLoaded: false,
+    ghReenter: false, ghFormErr: "", changeCounter: 0
+  };
+
+  function cleanTask(t) {
+    if (!t || typeof t !== "object") return null;
+    const text = typeof t.text === "string" ? t.text.trim().slice(0, 200) : "";
+    if (!text) return null;
+    return {
+      id: typeof t.id === "string" && t.id ? t.id.slice(0, 40) : newId(),
+      text,
+      done: t.done === true,
+      createdAt: Number.isFinite(t.createdAt) ? t.createdAt : 0,
+      doneAt: Number.isFinite(t.doneAt) ? t.doneAt : null,
+      from: typeof t.from === "string" && isDayKey(t.from) ? t.from : null
+    };
+  }
+  const cleanTasks = (arr) => (Array.isArray(arr) ? arr.map(cleanTask).filter(Boolean).slice(0, 300) : []);
+  const validThreshold = (v) => (THRESHOLDS.includes(Number(v)) ? Number(v) : 50);
+
+  const getTasks = (k) => (state.days[k] && state.days[k].tasks) || [];
+  // In GitHub mode an emptied day is kept (with its time) so another device cannot bring it back.
+  function setTasks(k, tasks) {
+    if (tasks.length || state.mode === "github") state.days[k] = { tasks, updatedAt: Date.now() };
+    else delete state.days[k];
+  }
+
+  function cleanData(data) {
+    const days = {};
+    if (data && data.days && typeof data.days === "object") {
+      for (const [k, v] of Object.entries(data.days)) {
+        if (!isDayKey(k) || !v || typeof v !== "object") continue;
+        const t = cleanTasks(v.tasks);
+        const u = Number.isFinite(v.updatedAt) ? v.updatedAt : 0;
+        if (t.length || u) days[k] = { tasks: t, updatedAt: u };
+      }
+    }
+    const s = data && data.settings;
+    return {
+      days,
+      settings: { yellowAt: validThreshold(s && s.yellowAt), updatedAt: s && Number.isFinite(s.updatedAt) ? s.updatedAt : 0 }
+    };
+  }
+
+  function statusOf(tasks) {
+    const total = tasks.length;
+    const done = tasks.filter((t) => t.done).length;
+    if (!total) return { level: "none", total, done, pct: 0 };
+    const ratio = (done / total) * 100;
+    const level = done === total ? "green" : ratio >= state.settings.yellowAt ? "yellow" : "red";
+    return { level, total, done, pct: done === total ? 100 : Math.floor(ratio) };
+  }
+
+  function streakInfo() {
+    const todayGreen = statusOf(getTasks(state.today)).level === "green";
+    let n = todayGreen ? 1 : 0;
+    let k = addDays(state.today, -1);
+    for (let i = 0; i < 400; i++) {
+      if (statusOf(getTasks(k)).level !== "green") break;
+      n++; k = addDays(k, -1);
+    }
+    return { n, todayGreen };
+  }
+
+  const canEdit = () => state.ready && !state.readOnly && state.mode !== "loading";
+
+  /* ---------- Saving ---------- */
+  const queue = {};
+  const isPending = (k) => !!(queue[k] && (queue[k].busy || queue[k].dirty));
+  const anyPending = () => Object.keys(queue).some(isPending);
+
+  function persist(key) {
+    if (state.mode === "github") {
+      state.ghDirty = true;
+      state.changeCounter++;
+      saveLocal();
+      scheduleSync();
+      return;
+    }
+    if (state.mode === "local") { saveLocal(); return; }
+    if (state.mode !== "cloud" || state.readOnly) return;
+    const e = queue[key] || (queue[key] = { busy: false, dirty: false });
+    e.dirty = true;
+    if (!e.busy) pump(key);
+    renderSync();
+  }
+
+  async function pump(key) {
+    const e = queue[key];
+    e.busy = true;
+    renderSync();
+    while (e.dirty) {
+      e.dirty = false;
+      try {
+        await writeWithRetry(key);
+        if (state.syncMsg && !state.readOnly) state.syncMsg = null;
+      } catch (err) {
+        e.dirty = false;
+        onWriteError(err);
+        break;
+      }
+    }
+    e.busy = false;
+    renderSync();
+  }
+
+  function docRef(key) { return state.db.collection("data/users/" + state.uid).doc(key); }
+
+  async function writeOnce(key) {
+    const ref = docRef(key);
+    if (key === "settings") return ref.set({ kind: "settings", yellowAt: state.settings.yellowAt });
+    const tasks = getTasks(key);
+    if (!tasks.length) return ref.delete();
+    return ref.set({ kind: "day", date: key, tasks: tasks.map((t) => ({ ...t })), updatedAt: Date.now() });
+  }
+
+  async function writeWithRetry(key) {
+    try { await writeOnce(key); }
+    catch (err) {
+      if (err && err.code === "unavailable") { await sleep(400 + Math.random() * 800); await writeOnce(key); }
+      else throw err;
+    }
+  }
+
+  function onWriteError(err) {
+    const code = err && err.code;
+    if (["invalid_argument", "not_granted", "capability_disabled", "capability_removed", "transform_error", "revoked"].includes(code)) {
+      state.readOnly = true;
+      state.syncMsg = { s: "error", t: "Không lưu được · chỉ xem" };
+    } else if (code === "quota_exceeded") {
+      state.syncMsg = { s: "error", t: "Hết chỗ lưu · xoá bớt ngày cũ" };
+    } else if (code === "resource_exhausted") {
+      state.syncMsg = { s: "warn", t: "Thao tác hơi nhanh, thử lại sau" };
+    } else {
+      state.syncMsg = { s: "error", t: "Chưa lưu được · kiểm tra mạng" };
+    }
+    render();
+  }
+
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      const d = cleanData(data);
+      state.days = d.days;
+      state.settings = d.settings;
+      state.ghDirty = !!(data && data.dirty === true);
+    } catch (e) { state.localOk = false; }
+  }
+
+  function saveLocal() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ days: state.days, settings: state.settings, dirty: state.ghDirty }));
+      state.localOk = true;
+    } catch (e) { state.localOk = false; }
+    renderSync();
+  }
+
+  /* ---------- GitHub storage (data.json in a private repo) ---------- */
+  const GH_KEY = "denviec:gh";
+  const GH_FILE = "data.json";
+
+  function readGhConfig() {
+    try {
+      const c = JSON.parse(localStorage.getItem(GH_KEY) || "null");
+      if (c && typeof c.owner === "string" && typeof c.repo === "string" && typeof c.token === "string" && c.token) return c;
+    } catch (e) { /* storage unavailable */ }
+    return null;
+  }
+  function writeGhConfig(c) {
+    try { if (c) localStorage.setItem(GH_KEY, JSON.stringify(c)); else localStorage.removeItem(GH_KEY); return true; }
+    catch (e) { return false; }
+  }
+
+  function b64encodeUtf8(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  function b64decodeUtf8(b64) {
+    const bin = atob(String(b64).replace(/\s/g, ""));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  async function ghFetch(cfg, path, opts = {}) {
+    const headers = { Accept: "application/vnd.github+json", Authorization: "Bearer " + cfg.token, "X-GitHub-Api-Version": "2022-11-28" };
+    if (opts.body) headers["Content-Type"] = "application/json";
+    try {
+      return await fetch(`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}${path}`, { ...opts, headers, cache: "no-store" });
+    } catch (e) {
+      throw { status: 0 };
+    }
+  }
+  async function ghErrorOf(res) {
+    let message = "";
+    try { message = (await res.json()).message || ""; } catch (e) { /* no body */ }
+    return { status: res.status, message, rate: res.headers.get("x-ratelimit-remaining") === "0" };
+  }
+
+  async function ghGet(cfg) {
+    const res = await ghFetch(cfg, "/contents/" + GH_FILE);
+    if (res.status === 404) return { data: null, sha: null };
+    if (!res.ok) throw await ghErrorOf(res);
+    const j = await res.json();
+    let data = null;
+    try { data = cleanData(JSON.parse(b64decodeUtf8(j.content || ""))); } catch (e) { data = null; }
+    return { data, sha: j.sha || null };
+  }
+
+  async function ghPut(cfg, text, sha) {
+    const now = new Date();
+    const body = { message: `Cập nhật to-do ${fmtDate(keyOf(now))} ${pad(now.getHours())}:${pad(now.getMinutes())}`, content: b64encodeUtf8(text) };
+    if (sha) body.sha = sha;
+    const res = await ghFetch(cfg, "/contents/" + GH_FILE, { method: "PUT", body: JSON.stringify(body) });
+    if (res.ok) { const j = await res.json().catch(() => ({})); return { ok: true, sha: j.content && j.content.sha }; }
+    if (res.status === 409 || res.status === 422) return { ok: false };   // file changed meanwhile: re-read and retry
+    throw await ghErrorOf(res);
+  }
+
+  function serialize() {
+    const days = {};
+    Object.keys(state.days).sort().forEach((k) => { days[k] = state.days[k]; });
+    return JSON.stringify({ app: "den-viec", version: 1, savedAt: new Date().toISOString(), days, settings: state.settings }, null, 2);
+  }
+
+  // Newest edit wins, day by day (and for the settings).
+  function mergeRemote(remote) {
+    if (!remote) return;
+    const out = { ...state.days };
+    for (const [k, b] of Object.entries(remote.days)) {
+      const a = out[k];
+      if (!a || (b.updatedAt || 0) > (a.updatedAt || 0)) out[k] = b;
+    }
+    state.days = out;
+    if ((remote.settings.updatedAt || 0) > (state.settings.updatedAt || 0)) state.settings = { ...remote.settings };
+  }
+
+  function localAhead(remote) {
+    if (!remote) return Object.keys(state.days).length > 0 || (state.settings.updatedAt || 0) > 0;
+    for (const [k, a] of Object.entries(state.days)) {
+      const b = remote.days[k];
+      if (!b || (a.updatedAt || 0) > (b.updatedAt || 0)) return true;
+    }
+    return (state.settings.updatedAt || 0) > (remote.settings.updatedAt || 0);
+  }
+
+  let syncTimer = null, retryTimer = null, syncQueued = false;
+  function scheduleSync(delay = 1200) {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(runSync, delay);
+  }
+  function retryLater(ms) {
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => {
+      if (state.mode !== "github" || (state.ghError && state.ghError.fatal)) return;
+      state.ghError = null;
+      if (state.ghDirty) runSync(); else ghPull();
+    }, ms);
+  }
+
+  function onGhError(err) {
+    const st = err && err.status;
+    if (st === 401) state.ghError = { s: "error", t: "Token GitHub sai hoặc đã hết hạn", fatal: true };
+    else if (st === 403 && err.rate) { state.ghError = { s: "warn", t: "GitHub đang giới hạn · thử lại sau" }; retryLater(60000); }
+    else if (st === 403 || st === 404) state.ghError = { s: "error", t: "Token chưa có quyền ghi vào repo", fatal: true };
+    else if (st === 0) { state.ghError = { s: "warn", t: "Chưa có mạng · sẽ lưu khi có mạng" }; retryLater(30000); }
+    else { state.ghError = { s: "error", t: "Chưa lưu được lên GitHub · sẽ thử lại" }; retryLater(30000); }
+  }
+
+  async function ghPull() {
+    if (state.mode !== "github") return;
+    if (state.ghBusy) { syncQueued = true; return; }
+    state.ghBusy = true;
+    renderSync();
+    const counter = state.changeCounter;
+    try {
+      const r = await ghGet(state.gh);
+      mergeRemote(r.data);
+      const ahead = localAhead(r.data);
+      if (ahead) state.ghDirty = true;
+      else if (state.changeCounter === counter) state.ghDirty = false;
+      state.ghError = null;
+      state.ghLastSync = Date.now();
+      state.ghLoaded = true;
+    } catch (err) { onGhError(err); }
+    state.ghBusy = false;
+    saveLocal();
+    render();
+    if (state.ghDirty && !state.ghError) scheduleSync(300);
+  }
+
+  async function runSync() {
+    if (state.mode !== "github") return;
+    if (state.ghBusy) { syncQueued = true; return; }
+    if (!state.ghDirty) return;
+    state.ghBusy = true;
+    renderSync();
+    try {
+      let saved = false;
+      for (let attempt = 0; attempt < 3 && !saved; attempt++) {
+        const r = await ghGet(state.gh);
+        mergeRemote(r.data);
+        const counter = state.changeCounter;
+        const res = await ghPut(state.gh, serialize(), r.sha);
+        if (res.ok) { saved = true; if (state.changeCounter === counter) state.ghDirty = false; }
+      }
+      if (!saved) throw { status: 409 };
+      state.ghError = null;
+      state.ghLastSync = Date.now();
+      state.ghLoaded = true;
+    } catch (err) { onGhError(err); }
+    state.ghBusy = false;
+    saveLocal();
+    render();
+    if (syncQueued || state.ghDirty) {
+      syncQueued = false;
+      if (state.ghDirty && !state.ghError) scheduleSync(800);
+    }
+  }
+
+  function defaultRepo() {
+    if (state.gh) return state.gh.owner + "/" + state.gh.repo;
+    const h = location.hostname || "";
+    return /\.github\.io$/.test(h) ? h.split(".")[0] + "/den-viec-data" : "";
+  }
+
+  async function connectGitHub() {
+    const full = elG.repo.value.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/\/+$/, "");
+    const token = elG.token.value.trim();
+    const m = full.match(/^([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)$/);
+    const fail = (msg) => { state.ghFormErr = msg; renderGh(); };
+    if (!m) return fail("Nhập repo theo dạng tên-tài-khoản/tên-repo, ví dụ ten-tai-khoan/den-viec-data.");
+    if (!token) return fail("Dán token vào ô Token.");
+    const cfg = { owner: m[1], repo: m[2], token };
+    elG.connectBtn.disabled = true;
+    elG.connectBtn.textContent = "Đang kiểm tra…";
+    state.ghFormErr = "";
+    renderGh();
+    try {
+      const res = await ghFetch(cfg, "");
+      if (res.status === 401) throw new Error("Token không đúng hoặc đã hết hạn.");
+      if (res.status === 403 || res.status === 404) throw new Error("Không mở được repo này. Kiểm tra lại tên repo, và token đã được chọn đúng repo đó chưa.");
+      if (!res.ok) throw new Error(`GitHub báo lỗi ${res.status}. Thử lại sau ít phút.`);
+      const info = await res.json();
+      if (!info.private) throw new Error("Repo này đang để Public, ai cũng đọc được việc của bạn. Hãy dùng một repo Private.");
+      if (!writeGhConfig(cfg)) throw new Error("Trình duyệt không cho lưu token. Tắt chế độ duyệt riêng tư rồi thử lại.");
+      const wasLocal = state.mode !== "github";
+      state.gh = cfg;
+      state.mode = "github";
+      state.ghError = null;
+      state.ghReenter = false;
+      elG.token.value = "";
+      if (wasLocal) state.ghDirty = Object.keys(state.days).length > 0;
+      render();
+      await ghPull();
+      if (!state.ghError) showToast("Đã kết nối GitHub. Việc của bạn sẽ được lưu ở đó.");
+    } catch (err) {
+      fail(err && err.message ? err.message : "Chưa kết nối được. Kiểm tra mạng rồi thử lại.");
+    } finally {
+      elG.connectBtn.disabled = false;
+      elG.connectBtn.textContent = "Kết nối";
+    }
+  }
+
+  function disconnectGitHub() {
+    writeGhConfig(null);
+    clearTimeout(syncTimer);
+    clearTimeout(retryTimer);
+    state.gh = null;
+    state.mode = "local";
+    state.ghError = null;
+    state.ghReenter = false;
+    state.ghLoaded = false;
+    render();
+    showToast("Đã ngắt kết nối trên máy này. Dữ liệu trên GitHub vẫn còn nguyên.");
+  }
+
+  function renderGh() {
+    const show = !state.insideClaude && (state.mode === "local" || state.mode === "github");
+    elG.panel.hidden = !show;
+    elG.notice.hidden = !(show && state.mode === "local");
+    if (!show) return;
+    const connected = state.mode === "github";
+    const fatal = connected && state.ghError && state.ghError.fatal;
+    elG.connected.hidden = !connected;
+    elG.form.hidden = connected && !fatal && !state.ghReenter;
+    if (connected) {
+      elG.repoName.textContent = state.gh.owner + "/" + state.gh.repo;
+      if (state.ghLastSync) {
+        const d = new Date(state.ghLastSync);
+        elG.last.textContent = `Đồng bộ lần cuối lúc ${pad(d.getHours())}:${pad(d.getMinutes())}, ${fmtShort(keyOf(d))}.`;
+      } else elG.last.textContent = "Chưa đồng bộ lần nào trên máy này.";
+      elG.syncNow.disabled = state.ghBusy;
+    }
+    if (!elG.repo.value) elG.repo.value = defaultRepo();
+    elG.err.textContent = state.ghFormErr || (fatal ? state.ghError.t + ". Dán lại token để tiếp tục lưu." : "");
+  }
+
+  /* ---------- Cloud connection ---------- */
+  async function getCap(name) {
+    try {
+      if (!window.claude || typeof window.claude.use !== "function") return null;
+      return await window.claude.use(name);
+    } catch (e) { return null; }
+  }
+
+  async function waitForClaude(ms) {
+    const start = Date.now();
+    while (!(window.claude && typeof window.claude.use === "function") && Date.now() - start < ms) await sleep(100);
+  }
+
+  function subscribe() {
+    const col = state.db.collection("data/users/" + state.uid);
+    const timer = setTimeout(() => { state.stale = true; state.ready = true; render(); }, 10000);
+    col.onSnapshot((snap) => {
+      const next = {};
+      let settings = null;
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (!data) continue;
+        if (d.id === "settings") { settings = data; continue; }
+        if (isDayKey(d.id) && data.kind === "day") {
+          const t = cleanTasks(data.tasks);
+          if (t.length) next[d.id] = { tasks: t };
+        }
+      }
+      // Keep local edits that are still being written.
+      for (const k of Object.keys(queue)) {
+        if (k === "settings" || !isPending(k)) continue;
+        if (state.days[k]) next[k] = state.days[k]; else delete next[k];
+      }
+      state.days = next;
+      if (settings && !isPending("settings")) state.settings.yellowAt = validThreshold(settings.yellowAt);
+      if (!snap.metadata.fromCache) { clearTimeout(timer); state.stale = false; state.loaded = true; }
+      state.ready = true;
+      render();
+    }, () => {
+      clearTimeout(timer);
+      state.ready = true; state.stale = false; state.readOnly = true;
+      state.syncMsg = { s: "error", t: "Không đồng bộ được · tải lại trang" };
+      render();
+    });
+  }
+
+  async function init() {
+    render();
+    // Connected to GitHub on this device: show the saved copy at once, then fetch the latest.
+    const cfg = readGhConfig();
+    if (cfg) {
+      state.mode = "github";
+      state.gh = cfg;
+      loadLocal();
+      state.ready = true;
+      render();
+      ghPull();
+      return;
+    }
+    const onOwnSite = /\.github\.io$/.test(location.hostname) || location.protocol === "file:";
+    if (!onOwnSite) await waitForClaude(1500);
+    state.insideClaude = !!(window.claude && typeof window.claude.use === "function");
+    const [db, user] = onOwnSite ? [null, null] : await Promise.all([getCap("db"), getCap("user")]);
+    let uid = null;
+    if (db && user && typeof user.id === "function") {
+      try { uid = await user.id(); } catch (e) { uid = null; }
+    }
+    if (db && uid) {
+      state.mode = "cloud"; state.db = db; state.uid = uid;
+      subscribe();
+    } else {
+      state.mode = "local";
+      loadLocal();
+      state.ready = true;
+    }
+    render();
+  }
+
+  /* ---------- Actions ---------- */
+  function mutate(key, fn) {
+    if (!canEdit()) return;
+    const tasks = getTasks(key).map((t) => ({ ...t }));
+    const out = fn(tasks) || tasks;
+    setTasks(key, out);
+    persist(key);
+    render();
+  }
+
+  function addTask(text) {
+    const clean = String(text || "").trim().slice(0, 200);
+    if (!clean || !canEdit()) return false;
+    mutate(state.selected, (ts) => { ts.push({ id: newId(), text: clean, done: false, createdAt: Date.now(), doneAt: null, from: null }); return ts; });
+    return true;
+  }
+
+  function toggleTask(id) {
+    mutate(state.selected, (ts) => {
+      const t = ts.find((x) => x.id === id);
+      if (t) { t.done = !t.done; t.doneAt = t.done ? Date.now() : null; }
+      return ts;
+    });
+  }
+
+  function renameTask(id, text) {
+    const clean = String(text || "").trim().slice(0, 200);
+    const cur = getTasks(state.selected).find((t) => t.id === id);
+    if (!cur || !clean || clean === cur.text) return;
+    mutate(state.selected, (ts) => { const t = ts.find((x) => x.id === id); if (t) t.text = clean; return ts; });
+  }
+
+  let undoFn = null, toastTimer = null;
+  function showToast(msg, undo) {
+    el.toastMsg.textContent = msg;
+    undoFn = undo || null;
+    el.toastUndo.hidden = !undo;
+    el.toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 6000);
+  }
+  function hideToast() { el.toast.hidden = true; undoFn = null; }
+
+  function withUndo(msg, keys, fn) {
+    if (!canEdit()) return;
+    const before = {};
+    keys.forEach((k) => { before[k] = getTasks(k).map((t) => ({ ...t })); });
+    fn();
+    showToast(msg, () => {
+      if (!canEdit()) return;
+      keys.forEach((k) => { setTasks(k, before[k]); persist(k); });
+      render();
+    });
+  }
+
+  function deleteTask(id) {
+    const key = state.selected;
+    const t = getTasks(key).find((x) => x.id === id);
+    if (!t) return;
+    withUndo(`Đã xoá “${shorten(t.text)}”`, [key], () => mutate(key, (ts) => ts.filter((x) => x.id !== id)));
+  }
+
+  function clearDone() {
+    const key = state.selected;
+    const n = getTasks(key).filter((t) => t.done).length;
+    if (!n) return;
+    withUndo(`Đã xoá ${n} việc đã xong`, [key], () => mutate(key, (ts) => ts.filter((x) => !x.done)));
+  }
+
+  function moveUnfinished(from, to) {
+    const moving = getTasks(from).filter((t) => !t.done);
+    if (!moving.length || !canEdit()) return;
+    withUndo(`Đã dời ${moving.length} việc sang ${to === state.today ? "hôm nay" : fmtShort(to)}`, [from, to], () => {
+      const existing = new Set(getTasks(to).map((t) => t.text.toLowerCase()));
+      const now = Date.now();
+      const add = moving
+        .filter((t) => !existing.has(t.text.toLowerCase()))
+        .map((t, i) => ({ id: newId() + i, text: t.text, done: false, createdAt: now + i, doneAt: null, from: t.from || from }));
+      setTasks(to, getTasks(to).map((t) => ({ ...t })).concat(add));
+      setTasks(from, getTasks(from).filter((t) => t.done).map((t) => ({ ...t })));
+      persist(to); persist(from);
+      render();
+    });
+  }
+
+  function selectDay(k) {
+    if (k === state.selected) return;
+    state.selected = k;
+    state.editing = null;
+    render();
+  }
+
+  /* ---------- Rendering ---------- */
+  let rendering = false;
+
+  function renderSync() {
+    let s, t;
+    if (state.mode === "github") {
+      if (state.ghError) ({ s, t } = state.ghError);
+      else if (state.ghBusy) { s = "saving"; t = state.ghDirty ? "Đang lưu lên GitHub…" : "Đang tải từ GitHub…"; }
+      else if (state.ghDirty) { s = "saving"; t = "Chờ lưu lên GitHub…"; }
+      else { s = "ok"; t = "Đã lưu trên GitHub"; }
+    }
+    else if (state.syncMsg) ({ s, t } = state.syncMsg);
+    else if (state.mode === "loading") { s = "saving"; t = "Đang tải…"; }
+    else if (state.mode === "local") { s = state.localOk ? "warn" : "error"; t = state.localOk ? "Chỉ lưu trên trình duyệt này" : "Không lưu được trên trình duyệt này"; }
+    else if (anyPending()) { s = "saving"; t = "Đang lưu…"; }
+    else if (state.stale) { s = "warn"; t = state.loaded ? "Có thể chưa mới nhất" : "Chưa kết nối được dữ liệu"; }
+    else { s = "ok"; t = "Đã đồng bộ"; }
+    el.sync.dataset.state = s;
+    el.sync.textContent = t;
+  }
+
+  function relName(k) {
+    if (k === state.today) return "Hôm nay";
+    if (k === addDays(state.today, -1)) return "Hôm qua";
+    if (k === addDays(state.today, 1)) return "Ngày mai";
+    return null;
+  }
+
+  function renderDayNav() {
+    const k = state.selected;
+    const wd = WD_LONG[parseKey(k).getDay()];
+    const rel = relName(k);
+    el.dayWeekday.textContent = rel || wd;
+    el.dayDate.textContent = (rel ? wd + ", " : "") + fmtDate(k);
+    el.todayBtn.disabled = k === state.today;
+  }
+
+  function renderWeek() {
+    const sel = parseKey(state.selected);
+    const monday = addDays(state.selected, -((sel.getDay() + 6) % 7));
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < 7; i++) {
+      const k = addDays(monday, i);
+      const d = parseKey(k);
+      const st = statusOf(getTasks(k));
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "wd" + (k === state.today ? " is-today" : "");
+      b.id = "wd-" + i;
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", String(k === state.selected));
+      b.dataset.key = k;
+      const levelText = st.level === "none" ? "chưa có việc" : `${st.done}/${st.total} việc, ${LABELS[st.level].split(" · ")[0].toLowerCase()}`;
+      b.setAttribute("aria-label", `${WD_LONG[d.getDay()]} ${fmtDate(k)}: ${levelText}`);
+      const name = document.createElement("span"); name.className = "wd-name"; name.textContent = k === state.today ? "Nay" : WD_SHORT[d.getDay()];
+      const num = document.createElement("span"); num.className = "wd-num"; num.textContent = d.getDate();
+      const dot = document.createElement("span"); dot.className = "wd-dot"; dot.dataset.level = st.level;
+      b.append(name, num, dot);
+      frag.append(b);
+    }
+    el.week.replaceChildren(frag);
+  }
+
+  function renderStatus() {
+    const k = state.selected;
+    const st = statusOf(getTasks(k));
+    const isToday = k === state.today;
+    el.app.dataset.status = st.level;
+    el.pct.textContent = st.pct;
+    el.statusLabel.textContent = LABELS[st.level];
+
+    let hint;
+    if (!state.ready) hint = "Đang tải dữ liệu…";
+    else if (st.level === "none") hint = isToday ? "Thêm việc đầu tiên cho hôm nay." : k > state.today ? "Lên kế hoạch trước cho ngày này." : "Ngày này không có việc nào.";
+    else if (st.level === "red") {
+      const need = Math.max(1, Math.ceil((state.settings.yellowAt * st.total) / 100) - st.done);
+      hint = `Làm thêm ${need} việc nữa để lên đèn vàng.`;
+    } else if (st.level === "yellow") hint = `Còn ${st.total - st.done} việc nữa là đèn xanh.`;
+    else hint = isToday ? "Xong hết việc hôm nay. Nghỉ ngơi thôi." : "Ngày này đã xong hết việc.";
+    el.statusHint.textContent = hint;
+
+    el.meterFill.style.width = st.pct + "%";
+    el.meter.setAttribute("aria-valuenow", String(st.pct));
+    el.meterTick.style.left = state.settings.yellowAt + "%";
+    el.meterTickLabel.textContent = "vàng " + state.settings.yellowAt + "%";
+    el.countText.textContent = st.total ? `${st.done}/${st.total} việc đã xong` : "0 việc";
+
+    const sk = streakInfo();
+    if (sk.n > 0) el.streak.textContent = sk.todayGreen ? `Chuỗi xanh ${sk.n} ngày` : `Chuỗi xanh ${sk.n} ngày · xanh hôm nay để giữ chuỗi`;
+    else el.streak.textContent = "Xanh hôm nay để bắt đầu chuỗi";
+
+    // One small celebration when the selected day turns green.
+    const prev = state.lastShown;
+    if (prev.key === k && prev.level && prev.level !== "green" && st.level === "green") {
+      el.statusCard.classList.remove("celebrate");
+      void el.statusCard.offsetWidth;
+      el.statusCard.classList.add("celebrate");
+    }
+    state.lastShown = { key: k, level: st.level };
+  }
+
+  function renderCarry() {
+    const show = state.ready && state.selected === state.today;
+    const y = addDays(state.today, -1);
+    const n = show ? getTasks(y).filter((t) => !t.done).length : 0;
+    el.carry.hidden = !(n > 0 && canEdit());
+    if (n > 0) el.carryText.textContent = `Hôm qua còn ${n} việc chưa xong.`;
+  }
+
+  function renderList() {
+    const tasks = getTasks(state.selected);
+    const counts = { all: tasks.length, todo: tasks.filter((t) => !t.done).length, done: tasks.filter((t) => t.done).length };
+    for (const b of el.filters.querySelectorAll("button")) {
+      const f = b.dataset.filter;
+      b.setAttribute("aria-pressed", String(f === state.filter));
+      b.querySelector(".n").textContent = counts[f] ? " " + counts[f] : "";
+    }
+
+    let view = tasks.map((t, i) => ({ t, i }));
+    if (state.filter === "todo") view = view.filter((x) => !x.t.done);
+    if (state.filter === "done") view = view.filter((x) => x.t.done);
+    view.sort((a, b) => (a.t.done - b.t.done) || (a.i - b.i));
+
+    const editable = canEdit();
+    const frag = document.createDocumentFragment();
+    for (const { t } of view) {
+      const li = document.createElement("li");
+      li.className = "task" + (t.done ? " done" : "");
+      li.dataset.id = t.id;
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.id = "t-" + t.id; cb.checked = t.done; cb.disabled = !editable;
+      cb.dataset.act = "toggle";
+      cb.setAttribute("aria-label", (t.done ? "Bỏ đánh dấu xong: " : "Đánh dấu xong: ") + t.text);
+      li.append(cb);
+
+      if (state.editing === t.id) {
+        const inp = document.createElement("input");
+        inp.type = "text"; inp.className = "edit-input"; inp.id = "editInput"; inp.maxLength = 200;
+        inp.value = state.editDraft;
+        inp.setAttribute("aria-label", "Sửa việc");
+        li.append(inp);
+      } else {
+        const span = document.createElement("span");
+        span.className = "task-text";
+        span.textContent = t.text;
+        if (t.from && t.from !== state.selected) {
+          const tag = document.createElement("span");
+          tag.className = "tag";
+          tag.textContent = "từ " + fmtShort(t.from);
+          span.append(tag);
+        }
+        li.append(span);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "task-actions";
+      if (editable && state.editing !== t.id) {
+        const eb = document.createElement("button");
+        eb.type = "button"; eb.className = "mini-btn"; eb.id = "e-" + t.id; eb.dataset.act = "edit";
+        eb.setAttribute("aria-label", "Sửa: " + t.text); eb.innerHTML = ICON_EDIT;
+        const db = document.createElement("button");
+        db.type = "button"; db.className = "mini-btn del"; db.id = "d-" + t.id; db.dataset.act = "delete";
+        db.setAttribute("aria-label", "Xoá: " + t.text); db.innerHTML = ICON_DEL;
+        actions.append(eb, db);
+      }
+      li.append(actions);
+      frag.append(li);
+    }
+    el.list.replaceChildren(frag);
+
+    // Empty states
+    el.empty.replaceChildren();
+    if (!state.ready) {
+      el.empty.hidden = false;
+      const p = document.createElement("p"); p.textContent = "Đang tải dữ liệu…";
+      el.empty.append(p);
+    } else if (!tasks.length) {
+      el.empty.hidden = false;
+      const h = document.createElement("h3");
+      h.textContent = state.selected === state.today ? "Hôm nay chưa có việc nào" : "Ngày này chưa có việc nào";
+      const p = document.createElement("p");
+      p.textContent = editable ? "Gõ việc vào ô phía trên, hoặc chọn nhanh một gợi ý:" : "Không có việc để hiển thị.";
+      el.empty.append(h, p);
+      if (editable) {
+        const wrap = document.createElement("div"); wrap.className = "sugs";
+        SUGGESTIONS.forEach((s, i) => {
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "sug"; b.id = "sug-" + i; b.dataset.sug = s; b.textContent = "+ " + s;
+          wrap.append(b);
+        });
+        el.empty.append(wrap);
+      }
+    } else if (!view.length) {
+      el.empty.hidden = false;
+      const p = document.createElement("p");
+      p.textContent = state.filter === "done" ? "Chưa có việc nào xong." : "Không còn việc nào chưa xong.";
+      el.empty.append(p);
+    } else {
+      el.empty.hidden = true;
+    }
+  }
+
+  function renderTools() {
+    const tasks = getTasks(state.selected);
+    const todo = tasks.filter((t) => !t.done).length;
+    const done = tasks.length - todo;
+    const editable = canEdit();
+    el.moveBtn.textContent = todo ? `Dời ${todo} việc chưa xong sang ngày mai` : "Dời việc chưa xong sang ngày mai";
+    el.moveBtn.disabled = !editable || !todo;
+    el.clearDoneBtn.textContent = done ? `Xoá ${done} việc đã xong` : "Xoá việc đã xong";
+    el.clearDoneBtn.disabled = !editable || !done;
+    el.yellowAt.value = String(state.settings.yellowAt);
+    el.yellowAt.disabled = !editable;
+    el.newTask.disabled = !editable;
+    el.addBtn.disabled = !editable;
+  }
+
+  /* ---------- History ---------- */
+  function histRows(n, endKey) {
+    const rows = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const k = addDays(endKey, -i);
+      rows.push({ k, ...statusOf(getTasks(k)) });
+    }
+    return rows;
+  }
+
+  function summarize(rows) {
+    const withTasks = rows.filter((r) => r.total);
+    const done = rows.reduce((s, r) => s + r.done, 0);
+    const total = rows.reduce((s, r) => s + r.total, 0);
+    const avg = withTasks.length ? Math.round(withTasks.reduce((s, r) => s + (r.done / r.total) * 100, 0) / withTasks.length) : null;
+    let best = null;
+    for (const r of rows) if (r.done > 0 && (!best || r.done >= best.done)) best = r;
+    return {
+      done, total, avg, days: withTasks.length, best,
+      green: withTasks.filter((r) => r.level === "green").length,
+      yellow: withTasks.filter((r) => r.level === "yellow").length,
+      red: withTasks.filter((r) => r.level === "red").length
+    };
+  }
+
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const f = raw / p;
+    return Math.max(1, (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p);
+  }
+
+  // Monotone cubic curve (Fritsch–Carlson): smooth, never overshoots below 0 or above 100%.
+  function curve(pts) {
+    const n = pts.length;
+    if (!n) return "";
+    const f = (v) => Math.round(v * 10) / 10;
+    if (n === 1) return `M${f(pts[0].x)},${f(pts[0].y)}`;
+    const dx = [], m = [];
+    for (let i = 0; i < n - 1; i++) { dx[i] = pts[i + 1].x - pts[i].x; m[i] = (pts[i + 1].y - pts[i].y) / dx[i]; }
+    const t = new Array(n);
+    t[0] = m[0]; t[n - 1] = m[n - 2];
+    for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+    for (let i = 0; i < n - 1; i++) {
+      if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+      const a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
+      if (s > 9) { const k = 3 / Math.sqrt(s); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
+    }
+    let d = `M${f(pts[0].x)},${f(pts[0].y)}`;
+    for (let i = 0; i < n - 1; i++) {
+      const h = dx[i] / 3;
+      d += ` C${f(pts[i].x + h)},${f(pts[i].y + t[i] * h)} ${f(pts[i + 1].x - h)},${f(pts[i + 1].y - t[i + 1] * h)} ${f(pts[i + 1].x)},${f(pts[i + 1].y)}`;
+    }
+    return d;
+  }
+
+  function renderHistory() {
+    const n = state.histRange;
+    const rows = histRows(n, state.today);
+    state.histRows = rows;
+    if (state.hoverIdx != null && state.hoverIdx >= n) state.hoverIdx = null;
+    const s = summarize(rows);
+    const prev = summarize(histRows(n, addDays(state.today, -n)));
+
+    for (const b of elH.range.querySelectorAll("button")) b.setAttribute("aria-pressed", String(Number(b.dataset.range) === n));
+    for (const b of elH.metric.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.metric === state.histMetric));
+    elH.sub.textContent = `${n} ngày gần nhất, ${fmtShort(rows[0].k)} đến ${fmtShort(rows[n - 1].k)}`;
+
+    // Stat tiles
+    const d = s.done - prev.done;
+    const tiles = [
+      { label: "Việc đã xong", value: String(s.done), unit: "", sub: d > 0 ? `▲ ${d} so với ${n} ngày trước` : d < 0 ? `▼ ${-d} so với ${n} ngày trước` : `Bằng ${n} ngày trước` },
+      { label: "Hoàn thành trung bình", value: s.avg == null ? "–" : String(s.avg), unit: s.avg == null ? "" : "%", sub: s.days ? `Tính trên ${s.days} ngày có việc` : "Chưa có ngày nào có việc" },
+      { label: "Ngày xanh", value: String(s.green), unit: `/${s.days}`, sub: `${s.yellow} vàng · ${s.red} đỏ` },
+      { label: "Làm nhiều nhất", value: s.best ? String(s.best.done) : "–", unit: s.best ? " việc" : "", sub: s.best ? `${WD_LONG[parseKey(s.best.k).getDay()]}, ${fmtShort(s.best.k)}` : "Chưa có" }
+    ];
+    const frag = document.createDocumentFragment();
+    for (const t of tiles) {
+      const box = document.createElement("div"); box.className = "stat";
+      const l = document.createElement("div"); l.className = "stat-label"; l.textContent = t.label;
+      const v = document.createElement("div"); v.className = "stat-value"; v.textContent = t.value;
+      if (t.unit) { const u = document.createElement("small"); u.textContent = t.unit; v.append(u); }
+      const sb = document.createElement("div"); sb.className = "stat-sub"; sb.textContent = t.sub;
+      box.append(l, v, sb);
+      frag.append(box);
+    }
+    elH.stats.replaceChildren(frag);
+
+    // Caption + legend (legend only when two lines are drawn)
+    const count = state.histMetric === "count";
+    elH.cap.textContent = count ? "Số việc mỗi ngày" : "% việc hoàn thành mỗi ngày";
+    elH.legend.replaceChildren();
+    if (count) {
+      [["Việc xong", "var(--chart-line)"], ["Tổng việc", "var(--chart-ctx)"]].forEach(([name, color]) => {
+        const sp = document.createElement("span");
+        const i = document.createElement("i"); i.style.setProperty("--k", color);
+        sp.append(i, document.createTextNode(name));
+        elH.legend.append(sp);
+      });
+    }
+
+    renderChart();
+    renderTable(rows);
+  }
+
+  function renderChart() {
+    const rows = state.histRows;
+    const n = rows.length;
+    if (!n) return;
+    const W = Math.max(280, Math.round(elH.wrap.clientWidth || 600));
+    const H = 230;
+    const m = { l: 34, r: 34, t: 16, b: 26 };
+    const pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const count = state.histMetric === "count";
+
+    let yMax, ticks = [];
+    if (count) {
+      const mx = Math.max(0, ...rows.map((r) => r.total));
+      if (mx <= 4) { yMax = 4; ticks = [0, 1, 2, 3, 4]; }
+      else { const step = niceStep(mx / 4); yMax = Math.ceil(mx / step) * step; for (let v = 0; v <= yMax; v += step) ticks.push(v); }
+    } else { yMax = 100; ticks = [0, 25, 50, 75, 100]; }
+
+    const step = n > 1 ? pw / (n - 1) : 0;
+    const x = (i) => m.l + (n > 1 ? i * step : pw / 2);
+    const y = (v) => m.t + ph - (v / yMax) * ph;
+    state.geom = { x, y, m, pw, ph, W, H, n, step, count };
+
+    const p = [];
+    // Selected day band
+    const si = rows.findIndex((r) => r.k === state.selected);
+    if (si >= 0) {
+      const bw = Math.max(12, Math.min(36, step * 0.8));
+      p.push(`<rect class="sel-band" x="${(x(si) - bw / 2).toFixed(1)}" y="${m.t - 6}" width="${bw.toFixed(1)}" height="${ph + 12}" rx="6"/>`);
+    }
+    // Grid + y labels
+    p.push('<g class="grid">');
+    ticks.forEach((v) => p.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/>`));
+    p.push("</g><g class=\"axis\">");
+    ticks.forEach((v) => p.push(`<text x="${m.l - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${count ? v : v + "%"}</text>`));
+    // x labels: always the last day (today), then every k-th day back from it
+    const every = n <= 7 ? 1 : n <= 14 ? 2 : 5;
+    for (let i = n - 1; i >= 0; i -= every) {
+      const r = rows[i];
+      const isToday = r.k === state.today;
+      p.push(`<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="middle"${isToday ? ' class="today"' : ""}>${isToday ? "Nay" : fmtShort(r.k)}</text>`);
+    }
+    p.push("</g>");
+
+    const dotR = n > 14 ? 3.5 : 4.5;
+    if (count) {
+      const ptsT = rows.map((r, i) => ({ x: x(i), y: y(r.total) }));
+      const ptsD = rows.map((r, i) => ({ x: x(i), y: y(r.done) }));
+      const line = curve(ptsD);
+      p.push(`<path class="a-done" d="${line} L${x(n - 1).toFixed(1)},${y(0).toFixed(1)} L${x(0).toFixed(1)},${y(0).toFixed(1)} Z"/>`);
+      p.push(`<path class="l-total" d="${curve(ptsT)}"/>`);
+      p.push(`<path class="l-done" d="${line}"/>`);
+      rows.forEach((r, i) => p.push(`<circle class="dot ${r.level}" cx="${x(i).toFixed(1)}" cy="${y(r.done).toFixed(1)}" r="${dotR}"/>`));
+      const last = rows[n - 1];
+      p.push(`<text class="end-label" x="${(x(n - 1) + 9).toFixed(1)}" y="${(y(last.done) + 4).toFixed(1)}">${last.done}</text>`);
+    } else {
+      const thr = state.settings.yellowAt;
+      p.push(`<line class="thr" x1="${m.l}" x2="${W - m.r}" y1="${y(thr).toFixed(1)}" y2="${y(thr).toFixed(1)}"/>`);
+      p.push(`<text class="thr-label" x="${m.l + 4}" y="${(y(thr) - 5).toFixed(1)}">mốc vàng ${thr}%</text>`);
+      // Days without tasks leave a gap in the line.
+      let seg = [];
+      const segs = [];
+      rows.forEach((r, i) => { if (r.total) seg.push({ x: x(i), y: y(r.pct) }); else if (seg.length) { segs.push(seg); seg = []; } });
+      if (seg.length) segs.push(seg);
+      for (const sg of segs) {
+        const line = curve(sg);
+        if (sg.length > 1) p.push(`<path class="a-done" d="${line} L${sg[sg.length - 1].x.toFixed(1)},${y(0).toFixed(1)} L${sg[0].x.toFixed(1)},${y(0).toFixed(1)} Z"/>`);
+        p.push(`<path class="l-done" d="${line}"/>`);
+      }
+      rows.forEach((r, i) => { if (r.total) p.push(`<circle class="dot ${r.level}" cx="${x(i).toFixed(1)}" cy="${y(r.pct).toFixed(1)}" r="${dotR}"/>`); });
+      const last = rows[n - 1];
+      if (last.total) p.push(`<text class="end-label" x="${(x(n - 1) + 9).toFixed(1)}" y="${(y(last.pct) + 4).toFixed(1)}">${last.pct}%</text>`);
+    }
+    p.push('<g id="chartHover"></g>');
+
+    elH.svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    elH.svg.setAttribute("width", W);
+    elH.svg.setAttribute("height", H);
+    elH.svg.innerHTML = p.join("");
+
+    const s = summarize(rows);
+    elH.svg.setAttribute("aria-label", count
+      ? `Biểu đồ số việc mỗi ngày trong ${n} ngày: xong ${s.done} trên ${s.total} việc. Dùng phím mũi tên để xem từng ngày.`
+      : `Biểu đồ phần trăm hoàn thành mỗi ngày trong ${n} ngày: trung bình ${s.avg == null ? "chưa có" : s.avg + "%"}. Dùng phím mũi tên để xem từng ngày.`);
+    elH.empty.hidden = rows.some((r) => r.total);
+    updateHover();
+  }
+
+  function tipRow(kind, color, strong, text) {
+    const row = document.createElement("div"); row.className = "tip-row";
+    const k = document.createElement("span"); k.className = kind; k.style.setProperty("--k", color);
+    const b = document.createElement("b"); b.textContent = strong;
+    row.append(k, b, document.createTextNode(" " + text));
+    return row;
+  }
+
+  function updateHover() {
+    const g = $("chartHover");
+    const i = state.hoverIdx;
+    const geo = state.geom;
+    if (!g || !geo || i == null || i >= state.histRows.length) {
+      if (g) g.innerHTML = "";
+      elH.tip.hidden = true;
+      return;
+    }
+    const r = state.histRows[i];
+    const cx = geo.x(i);
+    const parts = [`<line class="cross" x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${geo.m.t}" y2="${geo.m.t + geo.ph}"/>`];
+    if (geo.count) {
+      parts.push(`<circle class="dot-ctx" cx="${cx.toFixed(1)}" cy="${geo.y(r.total).toFixed(1)}" r="4"/>`);
+      parts.push(`<circle class="dot ${r.level}" cx="${cx.toFixed(1)}" cy="${geo.y(r.done).toFixed(1)}" r="6"/>`);
+    } else if (r.total) {
+      parts.push(`<circle class="dot ${r.level}" cx="${cx.toFixed(1)}" cy="${geo.y(r.pct).toFixed(1)}" r="6"/>`);
+    }
+    g.innerHTML = parts.join("");
+
+    const tip = elH.tip;
+    tip.replaceChildren();
+    const d = parseKey(r.k);
+    const head = document.createElement("div"); head.className = "tip-date";
+    head.textContent = `${WD_LONG[d.getDay()]}, ${fmtShort(r.k)}${r.k === state.today ? " · hôm nay" : ""}`;
+    tip.append(head);
+    if (r.total) {
+      tip.append(
+        tipRow("tip-key", "var(--chart-line)", String(r.done), "việc xong"),
+        tipRow("tip-key", "var(--chart-ctx)", String(r.total), "việc đã lên kế hoạch"),
+        tipRow("tip-dot", LEVEL_VAR[r.level], r.pct + "%", "· Đèn " + LEVEL_SHORT[r.level].toLowerCase())
+      );
+    } else {
+      const row = document.createElement("div"); row.className = "tip-row"; row.textContent = "Không có việc nào";
+      tip.append(row);
+    }
+    tip.hidden = false;
+    // Place beside the crosshair, on whichever side has room.
+    const scale = elH.svg.getBoundingClientRect().width / geo.W || 1;
+    const px = cx * scale;
+    const tw = tip.offsetWidth;
+    const wrapW = elH.wrap.clientWidth;
+    let left = px > wrapW / 2 ? px - tw - 12 : px + 12;
+    left = Math.max(0, Math.min(wrapW - tw, left));
+    tip.style.left = left + "px";
+    tip.style.top = Math.max(0, geo.m.t * scale - 4) + "px";
+  }
+
+  function renderTable(rows) {
+    const frag = document.createDocumentFragment();
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      const tr = document.createElement("tr");
+      const d = parseKey(r.k);
+      const cells = [
+        `${WD_SHORT[d.getDay()]} ${fmtDate(r.k)}${r.k === state.today ? " (hôm nay)" : ""}`,
+        r.total ? String(r.done) : "–",
+        r.total ? String(r.total) : "–",
+        r.total ? r.pct + "%" : "–"
+      ];
+      cells.forEach((c) => { const td = document.createElement("td"); td.textContent = c; tr.append(td); });
+      const td = document.createElement("td");
+      const lv = document.createElement("span"); lv.className = "lv";
+      const dot = document.createElement("i");
+      if (r.level === "none") dot.className = "none"; else dot.style.setProperty("--k", LEVEL_VAR[r.level]);
+      lv.append(dot, document.createTextNode(LEVEL_SHORT[r.level]));
+      td.append(lv); tr.append(td);
+      frag.append(tr);
+    }
+    elH.body.replaceChildren(frag);
+  }
+
+  function openDay(k) {
+    selectDay(k);
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  }
+
+  function render() {
+    rendering = true;
+    const active = document.activeElement;
+    const fid = active && active.id;
+    renderSync();
+    renderDayNav();
+    renderWeek();
+    renderStatus();
+    renderCarry();
+    renderList();
+    renderTools();
+    renderHistory();
+    renderGh();
+    const inp = $("editInput");
+    if (inp && (state.editFocus || fid === "editInput")) {
+      inp.focus({ preventScroll: true });
+      if (state.editFocus) { const n = inp.value.length; inp.setSelectionRange(n, n); state.editFocus = false; }
+    } else if (fid) {
+      const f = $(fid);
+      if (f && f !== document.activeElement && !f.disabled) f.focus({ preventScroll: true });
+    }
+    rendering = false;
+  }
+
+  /* ---------- Events ---------- */
+  el.prevDay.addEventListener("click", () => selectDay(addDays(state.selected, -1)));
+  el.nextDay.addEventListener("click", () => selectDay(addDays(state.selected, 1)));
+  el.todayBtn.addEventListener("click", () => selectDay(state.today));
+  el.week.addEventListener("click", (e) => {
+    const b = e.target.closest(".wd");
+    if (b) selectDay(b.dataset.key);
+  });
+
+  el.addForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (addTask(el.newTask.value)) { el.newTask.value = ""; el.newTask.focus(); }
+  });
+
+  el.filters.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-filter]");
+    if (!b) return;
+    state.filter = b.dataset.filter;
+    render();
+  });
+
+  el.list.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset.act === "toggle") toggleTask(t.closest(".task").dataset.id);
+  });
+
+  function startEdit(id) {
+    if (!canEdit()) return;
+    const t = getTasks(state.selected).find((x) => x.id === id);
+    if (!t) return;
+    state.editing = id; state.editDraft = t.text; state.editFocus = true;
+    render();
+  }
+  function commitEdit() {
+    const id = state.editing;
+    if (!id) return;
+    const text = state.editDraft;
+    state.editing = null;
+    renameTask(id, text);
+    render();
+    const eb = $("e-" + id);
+    if (eb) eb.focus({ preventScroll: true });
+  }
+  function cancelEdit() {
+    const id = state.editing;
+    state.editing = null;
+    render();
+    const eb = $("e-" + id);
+    if (eb) eb.focus({ preventScroll: true });
+  }
+
+  el.list.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-act]");
+    if (!b) return;
+    const id = b.closest(".task").dataset.id;
+    if (b.dataset.act === "edit") startEdit(id);
+    if (b.dataset.act === "delete") deleteTask(id);
+  });
+  el.list.addEventListener("dblclick", (e) => {
+    const s = e.target.closest(".task-text");
+    if (s) startEdit(s.closest(".task").dataset.id);
+  });
+  el.list.addEventListener("input", (e) => {
+    if (e.target.id === "editInput") state.editDraft = e.target.value;
+  });
+  el.list.addEventListener("keydown", (e) => {
+    if (e.target.id !== "editInput") return;
+    if (e.key === "Enter") { e.preventDefault(); commitEdit(); }
+    else if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+  });
+  el.list.addEventListener("focusout", (e) => {
+    if (e.target.id === "editInput" && !rendering && state.editing) commitEdit();
+  });
+
+  el.empty.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-sug]");
+    if (b) addTask(b.dataset.sug);
+  });
+
+  el.carryBtn.addEventListener("click", () => moveUnfinished(addDays(state.today, -1), state.today));
+  el.moveBtn.addEventListener("click", () => moveUnfinished(state.selected, addDays(state.selected, 1)));
+  el.clearDoneBtn.addEventListener("click", clearDone);
+  el.yellowAt.addEventListener("change", () => {
+    if (!canEdit()) return;
+    state.settings = { yellowAt: validThreshold(el.yellowAt.value), updatedAt: Date.now() };
+    persist("settings");
+    render();
+  });
+
+  /* GitHub panel */
+  function openGhPanel() {
+    if (elG.panel.hidden) return;
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    elG.panel.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    if (!elG.form.hidden) setTimeout(() => (elG.repo.value ? elG.token : elG.repo).focus({ preventScroll: true }), reduce ? 0 : 400);
+  }
+  el.sync.addEventListener("click", openGhPanel);
+  elG.noticeBtn.addEventListener("click", openGhPanel);
+  elG.form.addEventListener("submit", (e) => { e.preventDefault(); connectGitHub(); });
+  elG.syncNow.addEventListener("click", () => {
+    state.ghError = null;
+    if (state.ghDirty) runSync(); else ghPull();
+  });
+  elG.reenter.addEventListener("click", () => { state.ghReenter = true; state.ghFormErr = ""; renderGh(); elG.token.focus(); });
+  elG.disconnect.addEventListener("click", disconnectGitHub);
+
+  // Save before the page goes away; fetch other devices' changes when it comes back.
+  document.addEventListener("visibilitychange", () => {
+    if (state.mode !== "github") return;
+    if (document.hidden) { if (state.ghDirty) { clearTimeout(syncTimer); runSync(); } }
+    else if (!(state.ghError && state.ghError.fatal)) ghPull();
+  });
+  window.addEventListener("online", () => {
+    if (state.mode !== "github" || (state.ghError && state.ghError.fatal)) return;
+    state.ghError = null;
+    if (state.ghDirty) runSync(); else ghPull();
+  });
+  setInterval(() => {
+    if (state.mode === "github" && !document.hidden && !state.ghBusy && !state.ghDirty && !state.ghError) ghPull();
+  }, 120000);
+
+  el.toastUndo.addEventListener("click", () => { const f = undoFn; hideToast(); if (f) f(); });
+
+  /* History controls + chart interaction */
+  elH.range.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-range]");
+    if (!b) return;
+    state.histRange = Number(b.dataset.range);
+    state.hoverIdx = null;
+    renderHistory();
+  });
+  elH.metric.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-metric]");
+    if (!b) return;
+    state.histMetric = b.dataset.metric;
+    renderHistory();
+  });
+
+  function idxFromPointer(e) {
+    const g = state.geom;
+    if (!g) return null;
+    const rect = elH.svg.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (g.W / rect.width);
+    if (g.n < 2) return 0;
+    return Math.max(0, Math.min(g.n - 1, Math.round((px - g.m.l) / g.step)));
+  }
+  let lastPointer = "mouse", shownBeforeTap = null;
+  elH.svg.addEventListener("pointermove", (e) => {
+    const i = idxFromPointer(e);
+    if (i !== state.hoverIdx) { state.hoverIdx = i; updateHover(); }
+  });
+  elH.svg.addEventListener("pointerdown", (e) => {
+    lastPointer = e.pointerType;
+    shownBeforeTap = state.hoverIdx;
+    state.hoverIdx = idxFromPointer(e);
+    updateHover();
+  });
+  elH.svg.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "mouse" && document.activeElement !== elH.svg) { state.hoverIdx = null; updateHover(); }
+  });
+  elH.svg.addEventListener("click", () => {
+    const i = state.hoverIdx;
+    if (i == null) return;
+    // On touch, the first tap shows the day; a second tap on the same day opens it.
+    if (lastPointer === "touch" && shownBeforeTap !== i) return;
+    openDay(state.histRows[i].k);
+  });
+  elH.svg.addEventListener("focus", () => {
+    if (state.hoverIdx == null) { state.hoverIdx = state.histRows.length - 1; updateHover(); }
+  });
+  elH.svg.addEventListener("blur", () => { state.hoverIdx = null; updateHover(); });
+  elH.svg.addEventListener("keydown", (e) => {
+    const last = state.histRows.length - 1;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      const cur = state.hoverIdx == null ? last : state.hoverIdx;
+      state.hoverIdx = Math.max(0, Math.min(last, cur + (e.key === "ArrowLeft" ? -1 : 1)));
+      updateHover();
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (state.hoverIdx != null) openDay(state.histRows[state.hoverIdx].k);
+    } else if (e.key === "Escape") {
+      elH.svg.blur();
+    }
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (state.hoverIdx != null && !elH.svg.contains(e.target) && document.activeElement !== elH.svg) { state.hoverIdx = null; updateHover(); }
+  });
+  if (typeof ResizeObserver === "function") {
+    let lastW = 0;
+    new ResizeObserver(() => {
+      const w = Math.round(elH.wrap.clientWidth);
+      if (w && w !== lastW) { lastW = w; renderChart(); }
+    }).observe(elH.wrap);
+  }
+
+  document.addEventListener("keydown", (e) => {
+    const tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "select" || tag === "textarea" || tag === "svg" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "ArrowLeft") selectDay(addDays(state.selected, -1));
+    else if (e.key === "ArrowRight") selectDay(addDays(state.selected, 1));
+  });
+
+  // Roll over to the new day at midnight if the page stays open.
+  function checkToday() {
+    const t = todayKey();
+    if (t === state.today) return;
+    const wasToday = state.selected === state.today;
+    state.today = t;
+    if (wasToday) state.selected = t;
+    render();
+  }
+  setInterval(checkToday, 30000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkToday(); });
+
+  init();
+})();
+</script>
+</body>
+</html>
