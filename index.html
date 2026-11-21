@@ -11,7 +11,8 @@
 /* Layout: one narrow column — day picker, week strip, a traffic-light status card, then the task list */
 :root {
   --bg: #F2F3EF;
-  --surface: #FFFFFF;
+  --surface-base: #FFFFFF;
+  --surface: var(--surface-base);
   --ink: #15171B;
   --muted: #646A71;
   --line: #DEE1DA;
@@ -31,7 +32,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0F1113; --surface: #171A1E; --ink: #ECEEEA; --muted: #9BA1A8; --line: #2A2F35;
+    --bg: #0F1113; --surface-base: #171A1E; --ink: #ECEEEA; --muted: #9BA1A8; --line: #2A2F35;
     --accent: #8EA0FF; --red: #FF6B5C; --amber: #F6BC3F; --green: #3DCB7E; --none: #5B6168;
     --housing: #08090B; --lamp-off: #23272C;
     --chart-line: #6F84F0; --chart-ctx: #50575F; --grid: #262A2F;
@@ -39,7 +40,7 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0F1113; --surface: #171A1E; --ink: #ECEEEA; --muted: #9BA1A8; --line: #2A2F35;
+  --bg: #0F1113; --surface-base: #171A1E; --ink: #ECEEEA; --muted: #9BA1A8; --line: #2A2F35;
   --accent: #8EA0FF; --red: #FF6B5C; --amber: #F6BC3F; --green: #3DCB7E; --none: #5B6168;
   --housing: #08090B; --lamp-off: #23272C;
   --chart-line: #6F84F0; --chart-ctx: #50575F; --grid: #262A2F;
@@ -227,6 +228,42 @@ button, input, select { font-family: inherit; }
 .toast button { flex: none; background: transparent; border: 1px solid color-mix(in srgb, var(--bg) 45%, transparent); color: var(--bg); border-radius: 9px; padding: 5px 10px; font-weight: 600; font-size: 13px; cursor: pointer; }
 .toast button[hidden] { display: none; }
 
+/* Background image + appearance */
+.bg-layer, .bg-dim { position: fixed; inset: 0; pointer-events: none; display: none; }
+.bg-layer { z-index: 0; background-size: cover; background-position: center; filter: blur(var(--bg-blur, 0px)); }
+.bg-dim { z-index: 0; background: var(--bg); opacity: var(--bg-dim, .4); transition: background-color .3s ease; }
+body.has-bg .bg-layer, body.has-bg .bg-dim { display: block; }
+.app { position: relative; z-index: 1; }
+body.has-bg .app { --surface: color-mix(in srgb, var(--surface-base) 78%, transparent); }
+body.has-bg :is(.status-card, .list, .chart-card, .stat, .empty, .gh-card, .notice, .carry, .look-panel, .add input, .filters, .seg, .icon-btn, .chip-btn) {
+  -webkit-backdrop-filter: blur(14px) saturate(1.15); backdrop-filter: blur(14px) saturate(1.15);
+}
+body.has-bg :is(.weekday, .hist-title, .brand) { text-shadow: 0 1px 10px color-mix(in srgb, var(--bg) 70%, transparent); }
+
+.top-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.look-btn { width: 36px; height: 36px; border-radius: 11px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: grid; place-items: center; cursor: pointer; padding: 0; flex: none; }
+.look-btn svg { width: 18px; height: 18px; }
+.look-btn[aria-expanded="true"] { border-color: var(--ink); }
+
+.look-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.look-panel[hidden] { display: none; }
+.look-head { display: flex; align-items: center; justify-content: space-between; }
+.look-head h2 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+.look-group { display: flex; flex-direction: column; gap: 8px; }
+.look-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-weight: 600; }
+.look-label span { font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+.look-note { margin: 0; font-size: 12px; color: var(--muted); }
+.look-note.err { color: var(--red); font-weight: 500; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 10px; }
+.swatch { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: var(--ink); cursor: pointer; font-size: 12px; font-weight: 500; }
+.swatch-img { width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; border: 1px solid var(--line); background-size: cover; background-position: center; display: grid; place-items: center; color: var(--muted); }
+.swatch-img svg { width: 20px; height: 20px; }
+.swatch[aria-pressed="true"] .swatch-img { box-shadow: 0 0 0 2px var(--surface-base), 0 0 0 4px var(--accent); border-color: transparent; }
+.swatch.none .swatch-img { background: linear-gradient(135deg, transparent calc(50% - 1px), var(--line) calc(50% - 1px), var(--line) calc(50% + 1px), transparent calc(50% + 1px)), var(--bg); }
+.swatch.upload .swatch-img { border-style: dashed; background: var(--bg); }
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; height: 24px; }
+input[type="range"]:disabled { opacity: .45; }
+
 /* History */
 .history { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; padding-top: 22px; border-top: 1px solid var(--line); }
 .hist-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
@@ -342,11 +379,50 @@ button, input, select { font-family: inherit; }
 </style>
 </head>
 <body>
+<div class="bg-layer" id="bgLayer" aria-hidden="true"></div>
+<div class="bg-dim" aria-hidden="true"></div>
 <div class="app" id="app" data-status="none">
   <header class="top">
     <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Đèn Việc</span></div>
-    <button type="button" class="sync" id="sync" aria-live="polite" data-state="saving">Đang tải…</button>
+    <div class="top-right">
+      <button type="button" class="sync" id="sync" aria-live="polite" data-state="saving">Đang tải…</button>
+      <button type="button" class="look-btn" id="lookBtn" aria-expanded="false" aria-controls="lookPanel" aria-label="Giao diện và hình nền">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5"/><circle cx="7" cy="8" r="1.6"/><path d="M3 14.5l4.2-4 3.3 3 2.5-2.2 4.3 3.7"/></svg>
+      </button>
+    </div>
   </header>
+
+  <section class="look-panel" id="lookPanel" aria-labelledby="lookTitle" hidden>
+    <div class="look-head">
+      <h2 id="lookTitle">Giao diện</h2>
+      <button type="button" class="mini-btn" id="lookClose" aria-label="Đóng giao diện">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15"/></svg>
+      </button>
+    </div>
+    <div class="look-group">
+      <div class="look-label" id="bgLabel">Hình nền</div>
+      <div class="swatches" id="swatches" role="group" aria-labelledby="bgLabel"></div>
+      <input type="file" id="bgFile" accept="image/*" class="sr-only" tabindex="-1" aria-hidden="true">
+      <p class="look-note" id="lookNote">Ảnh của bạn được thu nhỏ và chỉ lưu trên máy này.</p>
+    </div>
+    <div class="look-group">
+      <label class="look-label" for="bgBlur">Làm mờ hình nền <span id="bgBlurVal">0 px</span></label>
+      <input type="range" id="bgBlur" min="0" max="40" step="1" value="8">
+    </div>
+    <div class="look-group">
+      <label class="look-label" for="bgDim">Lớp phủ cho chữ dễ đọc <span id="bgDimVal">40%</span></label>
+      <input type="range" id="bgDim" min="0" max="85" step="5" value="40">
+    </div>
+    <div class="look-group">
+      <div class="look-label" id="themeLabel">Chế độ màu</div>
+      <div class="seg" id="themeSeg" role="group" aria-labelledby="themeLabel">
+        <button type="button" id="th-auto" data-theme-mode="auto" aria-pressed="true">Tự động</button>
+        <button type="button" id="th-light" data-theme-mode="light" aria-pressed="false">Sáng</button>
+        <button type="button" id="th-dark" data-theme-mode="dark" aria-pressed="false">Tối</button>
+      </div>
+      <p class="look-note">Tự động: theo độ sáng của hình nền, hoặc theo máy khi không có hình nền.</p>
+    </div>
+  </section>
 
   <div class="notice" id="ghNotice" hidden>
     <span>Việc của bạn đang chỉ nằm trên trình duyệt này và có thể mất khi đóng trang. Kết nối GitHub để lưu lâu dài.</span>
@@ -1882,6 +1958,189 @@ button, input, select { font-family: inherit; }
   }
   setInterval(checkToday, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkToday(); });
+
+  /* ---------- Appearance: background image, blur, colour mode (saved on this device) ---------- */
+  const LOOK_KEY = "denviec:look", BGIMG_KEY = "denviec:bgimg";
+  const PRESETS = [
+    { id: "dusk", name: "Hoàng hôn", tone: "dark", css: "radial-gradient(at 18% 22%, #ff9a6b 0, transparent 52%), radial-gradient(at 82% 18%, #ff5d8f 0, transparent 48%), radial-gradient(at 60% 88%, #5b3fc4 0, transparent 58%), #24183a" },
+    { id: "sea", name: "Biển", tone: "dark", css: "radial-gradient(at 12% 30%, #5fd3c6 0, transparent 50%), radial-gradient(at 85% 20%, #2b8fd6 0, transparent 55%), radial-gradient(at 50% 95%, #1b4f8f 0, transparent 60%), #0a2238" },
+    { id: "forest", name: "Rừng", tone: "dark", css: "radial-gradient(at 20% 15%, #9fd38a 0, transparent 48%), radial-gradient(at 80% 70%, #2f8a62 0, transparent 55%), radial-gradient(at 35% 92%, #1d5a45 0, transparent 50%), #0f2219" },
+    { id: "city", name: "Phố đêm", tone: "dark", css: "radial-gradient(at 25% 75%, #ff3d8b 0, transparent 45%), radial-gradient(at 78% 25%, #3a5bff 0, transparent 50%), radial-gradient(at 55% 50%, #7b2fd0 0, transparent 40%), #0b0d1c" },
+    { id: "paper", name: "Giấy", tone: "light", css: "radial-gradient(at 15% 10%, #fff8ec 0, transparent 50%), radial-gradient(at 85% 90%, #e8d3b3 0, transparent 55%), #f3e8d6" },
+    { id: "mist", name: "Sương", tone: "light", css: "radial-gradient(at 20% 20%, #ffffff 0, transparent 50%), radial-gradient(at 80% 30%, #c9dcf4 0, transparent 50%), radial-gradient(at 50% 92%, #dad0f0 0, transparent 55%), #e8edf5" }
+  ];
+  const ICON_PLUS = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>';
+  const DEFAULT_NOTE = "Ảnh của bạn được thu nhỏ và chỉ lưu trên máy này.";
+  const elL = {
+    btn: $("lookBtn"), panel: $("lookPanel"), close: $("lookClose"), swatches: $("swatches"), file: $("bgFile"),
+    note: $("lookNote"), blur: $("bgBlur"), blurVal: $("bgBlurVal"), dim: $("bgDim"), dimVal: $("bgDimVal"),
+    theme: $("themeSeg"), layer: $("bgLayer")
+  };
+  const hostTheme = document.documentElement.getAttribute("data-theme");
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const look = { theme: "auto", bg: "none", blur: 8, dim: 40, imgTone: "dark" };
+  let bgImg = null;
+  try {
+    const saved = JSON.parse(localStorage.getItem(LOOK_KEY) || "null");
+    if (saved && typeof saved === "object") {
+      if (["auto", "light", "dark"].includes(saved.theme)) look.theme = saved.theme;
+      if (saved.bg === "none" || saved.bg === "custom" || PRESETS.some((p) => p.id === saved.bg)) look.bg = saved.bg;
+      if (Number.isFinite(saved.blur)) look.blur = clamp(saved.blur, 0, 40);
+      if (Number.isFinite(saved.dim)) look.dim = clamp(saved.dim, 0, 85);
+      if (saved.imgTone === "light" || saved.imgTone === "dark") look.imgTone = saved.imgTone;
+    }
+    bgImg = localStorage.getItem(BGIMG_KEY);
+    if (bgImg && !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(bgImg)) bgImg = null;
+  } catch (e) { /* storage unavailable: defaults */ }
+  if (look.bg === "custom" && !bgImg) look.bg = "none";
+
+  function saveLook() { try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch (e) { /* ignore */ } }
+  function trySaveImg(data) {
+    try { localStorage.setItem(BGIMG_KEY, data); return true; }
+    catch (e) { try { localStorage.removeItem(BGIMG_KEY); } catch (e2) { /* ignore */ } return false; }
+  }
+  function setNote(msg, isErr) {
+    elL.note.textContent = msg || DEFAULT_NOTE;
+    elL.note.classList.toggle("err", !!isErr);
+  }
+
+  function applyLook() {
+    const root = document.documentElement;
+    const preset = PRESETS.find((p) => p.id === look.bg);
+    const hasBg = !!preset || (look.bg === "custom" && !!bgImg);
+    const tone = preset ? preset.tone : hasBg ? look.imgTone : null;
+    const theme = look.theme === "auto" ? (tone || hostTheme) : look.theme;
+    if (theme) root.setAttribute("data-theme", theme); else root.removeAttribute("data-theme");
+    document.body.classList.toggle("has-bg", hasBg);
+    const L = elL.layer.style;
+    L.background = "";
+    if (preset) L.background = preset.css;
+    else if (hasBg) L.backgroundImage = `url("${bgImg}")`;
+    L.backgroundSize = "cover";
+    L.backgroundPosition = "center";
+    L.transform = look.blur > 0 ? `scale(${(1 + look.blur / 200).toFixed(3)})` : "none";
+    root.style.setProperty("--bg-blur", look.blur + "px");
+    root.style.setProperty("--bg-dim", String(look.dim / 100));
+  }
+
+  function renderLook() {
+    const fid = document.activeElement && document.activeElement.id;
+    const items = [{ id: "none", name: "Không" }, ...PRESETS];
+    if (bgImg) items.push({ id: "custom", name: "Ảnh của bạn" });
+    const frag = document.createDocumentFragment();
+    for (const it of items) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "swatch" + (it.id === "none" ? " none" : "");
+      b.id = "sw-" + it.id;
+      b.dataset.bg = it.id;
+      b.setAttribute("aria-pressed", String(look.bg === it.id));
+      const im = document.createElement("span");
+      im.className = "swatch-img";
+      if (it.css) im.style.background = it.css;
+      if (it.id === "custom") { im.style.backgroundImage = `url("${bgImg}")`; im.style.backgroundSize = "cover"; im.style.backgroundPosition = "center"; }
+      const nm = document.createElement("span");
+      nm.textContent = it.name;
+      b.append(im, nm);
+      frag.append(b);
+    }
+    const up = document.createElement("button");
+    up.type = "button"; up.className = "swatch upload"; up.id = "sw-upload"; up.dataset.upload = "1";
+    const ui = document.createElement("span"); ui.className = "swatch-img"; ui.innerHTML = ICON_PLUS;
+    const un = document.createElement("span"); un.textContent = bgImg ? "Đổi ảnh" : "Chọn ảnh";
+    up.append(ui, un);
+    frag.append(up);
+    elL.swatches.replaceChildren(frag);
+    if (fid && fid.startsWith("sw-") && $(fid)) $(fid).focus({ preventScroll: true });
+
+    const hasBg = look.bg !== "none";
+    elL.blur.value = String(look.blur);
+    elL.dim.value = String(look.dim);
+    elL.blur.disabled = !hasBg;
+    elL.dim.disabled = !hasBg;
+    elL.blurVal.textContent = look.blur + " px";
+    elL.dimVal.textContent = look.dim + "%";
+    for (const b of elL.theme.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.themeMode === look.theme));
+  }
+
+  // Shrink the photo (max side in px), re-encode as JPEG, and measure whether it is light or dark.
+  function processImage(file, maxSide, quality) {
+    return new Promise((resolve, reject) => {
+      if (!file || !/^image\//.test(file.type || "image/")) { reject(new Error("Hãy chọn một file ảnh (JPG, PNG…).")); return; }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const s = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+          const w = Math.max(1, Math.round(img.naturalWidth * s)), h = Math.max(1, Math.round(img.naturalHeight * s));
+          const c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          c.getContext("2d").drawImage(img, 0, 0, w, h);
+          const t = document.createElement("canvas");
+          t.width = 24; t.height = 24;
+          const tx = t.getContext("2d");
+          tx.drawImage(img, 0, 0, 24, 24);
+          const px = tx.getImageData(0, 0, 24, 24).data;
+          let sum = 0;
+          for (let i = 0; i < px.length; i += 4) sum += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+          const lum = sum / (px.length / 4) / 255;
+          resolve({ data: c.toDataURL("image/jpeg", quality), tone: lum > 0.58 ? "light" : "dark" });
+        } catch (e) { reject(new Error("Không xử lý được ảnh này. Thử ảnh khác.")); }
+        finally { URL.revokeObjectURL(url); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Trình duyệt không đọc được ảnh này. Thử ảnh JPG hoặc PNG.")); };
+      img.src = url;
+    });
+  }
+
+  function setLookOpen(open) {
+    elL.panel.hidden = !open;
+    elL.btn.setAttribute("aria-expanded", String(open));
+    if (open) { renderLook(); setNote(); }
+  }
+  elL.btn.addEventListener("click", () => setLookOpen(elL.panel.hidden));
+  elL.close.addEventListener("click", () => { setLookOpen(false); elL.btn.focus(); });
+  elL.swatches.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.upload) { elL.file.value = ""; elL.file.click(); return; }
+    look.bg = b.dataset.bg;
+    saveLook(); applyLook(); renderLook(); setNote();
+  });
+  elL.file.addEventListener("change", async () => {
+    const f = elL.file.files && elL.file.files[0];
+    if (!f) return;
+    setNote("Đang xử lý ảnh…");
+    try {
+      let r = await processImage(f, 1600, 0.82);
+      let stored = trySaveImg(r.data);
+      if (!stored) { r = await processImage(f, 1100, 0.7); stored = trySaveImg(r.data); }
+      bgImg = r.data;
+      look.bg = "custom";
+      look.imgTone = r.tone;
+      saveLook(); applyLook(); renderLook();
+      setNote(stored ? "Đã đặt ảnh làm hình nền. Ảnh chỉ lưu trên máy này." : "Ảnh quá lớn để lưu lại nên sẽ mất khi tải lại trang. Thử một ảnh nhỏ hơn.", !stored);
+    } catch (err) {
+      setNote(err && err.message ? err.message : "Không đọc được ảnh này.", true);
+    }
+  });
+  elL.blur.addEventListener("input", () => {
+    look.blur = clamp(Number(elL.blur.value) || 0, 0, 40);
+    elL.blurVal.textContent = look.blur + " px";
+    applyLook(); saveLook();
+  });
+  elL.dim.addEventListener("input", () => {
+    look.dim = clamp(Number(elL.dim.value) || 0, 0, 85);
+    elL.dimVal.textContent = look.dim + "%";
+    applyLook(); saveLook();
+  });
+  elL.theme.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-theme-mode]");
+    if (!b) return;
+    look.theme = b.dataset.themeMode;
+    saveLook(); applyLook(); renderLook();
+  });
+  applyLook();
 
   init();
 })();
